@@ -1,0 +1,5 @@
+# Binaries
+toktrim
+*.exe
+# Go workspace
+vendor/
