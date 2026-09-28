@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/yourusername/toktrim/internal/filter"
 	"github.com/yourusername/toktrim/internal/tokenizer"
@@ -20,8 +21,6 @@ func ExecuteCommand(args []string) {
 		os.Exit(1)
 	}
 	cmd := exec.Command(args[0], args[1:]...)
-	// Combine stdout and stderr? The spec says intercepts stdout and stderr.
-	// We'll combine them for simplicity; but we could keep separate.
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error creating stdout pipe: %v\n", err)
@@ -32,35 +31,32 @@ func ExecuteCommand(args []string) {
 		fmt.Fprintf(os.Stderr, "error creating stderr pipe: %v\n", err)
 		os.Exit(1)
 	}
-	// We'll read both pipes concurrently and combine.
-	var output strings.Builder
-	// Use a channel to signal when both pipes are done.
-	done := make(chan struct{})
-	go func() {
-		io.Copy(&output, stdoutPipe)
-		done <- struct{}{}
-	}()
-	go func() {
-		io.Copy(&output, stderrPipe)
-		done <- struct{}{}
-	}()
-	// Wait for both goroutines (two signals)
-	<-done
-	<-done
+
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "error starting command: %v\n", err)
 		os.Exit(1)
 	}
+
+	var stdoutBuf, stderrBuf strings.Builder
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		io.Copy(&stdoutBuf, stdoutPipe)
+	}()
+	go func() {
+		defer wg.Done()
+		io.Copy(&stderrBuf, stderrPipe)
+	}()
+	wg.Wait()
+
 	if err := cmd.Wait(); err != nil {
-		// We still want to show output even if command failed.
-		// We'll note the exit error in stderr later.
 		fmt.Fprintf(os.Stderr, "warning: command exited with error: %v\n", err)
 	}
-	raw := output.String()
+
+	raw := stdoutBuf.String() + stderrBuf.String()
 	filtered := applyFilters(raw)
-	// Print filtered output to stdout (must be clean data)
 	fmt.Print(filtered)
-	// Print token analytics to stderr
 	printTokenStats(raw, filtered)
 }
 
