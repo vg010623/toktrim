@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -151,5 +152,87 @@ func TestAcceptance_WorksWithoutNetwork(t *testing.T) {
 	}
 	if _, code := runToktrim(t, bin, "run", "--", "bash", "-c", "echo offline"); code != 0 {
 		t.Errorf("exit code = %d, want 0", code)
+	}
+}
+
+// runHook pipes a PreToolUse payload through the built binary's hook subcommand.
+func runHook(t *testing.T, bin, payload string) string {
+	t.Helper()
+	cmd := exec.Command(bin, "hook")
+	cmd.Stdin = strings.NewReader(payload)
+	var out strings.Builder
+	cmd.Stdout = &out
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("toktrim hook: %v", err)
+	}
+	return out.String()
+}
+
+// Acceptance tests 8, 9 and 10, through the real binary.
+func TestAcceptance_HookThroughBinary(t *testing.T) {
+	bin := buildToktrim(t)
+
+	if got := runHook(t, bin, `{"tool_input":{"command":"git status"}}`); got != "" {
+		t.Errorf("AT8: git status should print nothing, got %q", got)
+	}
+
+	got := runHook(t, bin, `{"tool_input":{"command":"npm run build"}}`)
+	want := `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"command":"toktrim run -- bash -c 'npm run build'"}}}` + "\n"
+	if got != want {
+		t.Errorf("AT9: wrapped output\n got %q\nwant %q", got, want)
+	}
+
+	if got := runHook(t, bin, `{"tool_input":{"command":"npm run dev"}}`); got != "" {
+		t.Errorf("AT10: npm run dev should print nothing, got %q", got)
+	}
+}
+
+// Acceptance test 11, end to end: the command the hook produces is executed and
+// compared against the same command run directly.
+func TestAcceptance_HookWrappedCommandRunsIdentically(t *testing.T) {
+	bin := buildToktrim(t)
+
+	// Put the freshly built binary first on PATH so the wrapper, which names
+	// "toktrim", resolves to it rather than to whatever is installed on the
+	// machine. On Windows the build is toktrim.exe, which PATH lookup finds.
+	binDir := filepath.Dir(bin)
+
+	script := `export NAME=world; echo "hi $NAME" && echo 'it'"'"'s quoted' | tr a-z A-Z`
+
+	payload, err := json.Marshal(map[string]any{
+		"tool_name":  "Bash",
+		"tool_input": map[string]any{"command": script},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply := runHook(t, bin, string(payload))
+	if reply == "" {
+		t.Fatal("expected the command to be wrapped")
+	}
+	var parsed struct {
+		HookSpecificOutput struct {
+			UpdatedInput struct {
+				Command string `json:"command"`
+			} `json:"updatedInput"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal([]byte(reply), &parsed); err != nil {
+		t.Fatalf("bad reply: %v", err)
+	}
+	wrapped := parsed.HookSpecificOutput.UpdatedInput.Command
+
+	direct, errDirect := exec.Command("bash", "-c", script).CombinedOutput()
+
+	wrappedCmd := exec.Command("bash", "-c", wrapped)
+	wrappedCmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	viaHook, errHook := wrappedCmd.CombinedOutput()
+
+	if (errDirect == nil) != (errHook == nil) {
+		t.Errorf("exit differed: direct=%v, wrapped=%v\nwrapped output: %s", errDirect, errHook, viaHook)
+	}
+	if string(direct) != string(viaHook) {
+		t.Errorf("output differed\n direct: %q\nwrapped: %q\ncommand: %s", direct, viaHook, wrapped)
 	}
 }
