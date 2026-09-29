@@ -27,6 +27,9 @@ const ExitCommandNotFound = 127
 // Output is always written before Run returns: a failing command must still
 // show why it failed.
 func Run(args []string, cfg *config.Config) int {
+	if cfg == nil {
+		cfg = config.Default()
+	}
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "toktrim: no command provided")
 		return ExitCommandNotFound
@@ -106,6 +109,9 @@ func exitCodeOf(err error) int {
 
 // ProcessStdin filters output arriving on stdin.
 func ProcessStdin(cfg *config.Config) int {
+	if cfg == nil {
+		cfg = config.Default()
+	}
 	stdout := bufio.NewWriter(os.Stdout)
 	proc := pipeline.New(stdout, pipeline.Options{
 		Filters:          filter.Chain(nil, cfg),
