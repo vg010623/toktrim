@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/vg010623/toktrim/internal/config"
 	"github.com/vg010623/toktrim/internal/runner"
 )
 
@@ -14,6 +15,10 @@ Usage:
   toktrim pipe                         filter output arriving on stdin
 
 "exec" is accepted as an alias for "run".
+
+Environment:
+  TOKTRIM_STATS=1    report what was trimmed, on stderr
+  TOKTRIM_DISABLE=1  pass everything through unchanged
 `
 
 func main() {
@@ -21,6 +26,8 @@ func main() {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
+
+	cfg := config.Default()
 
 	switch os.Args[1] {
 	case "run", "exec":
@@ -33,9 +40,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "toktrim: %s needs a command\n\n%s", os.Args[1], usage)
 			os.Exit(2)
 		}
-		runner.ExecuteCommand(args)
+		os.Exit(runner.Run(args, cfg))
 	case "pipe":
-		runner.ProcessStdin()
+		os.Exit(runner.ProcessStdin(cfg))
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:

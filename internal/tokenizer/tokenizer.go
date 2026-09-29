@@ -22,3 +22,15 @@ func Estimate(text string) int {
 	}
 	return n
 }
+
+// EstimateBytes returns the approximate number of tokens in n bytes of text.
+func EstimateBytes(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	t := n / CharsPerToken
+	if t == 0 {
+		return 1
+	}
+	return t
+}

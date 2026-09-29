@@ -5,41 +5,63 @@ import (
 	"strings"
 )
 
-// DedupFilter collapses 3 or more identical consecutive lines into a summary line.
-// Example: three lines of "foo bar" become "[Repeated 3 times: foo bar]".
-// In Go, we use a simple state machine over lines.
-// Compared to TypeScript: Go's for loop over slices is idiomatic; we avoid mutation of input slice.
-type DedupFilter struct{}
+// DefaultMinRun is the shortest run of identical lines worth collapsing.
+const DefaultMinRun = 3
 
-// Apply processes input string and returns deduplicated output.
-func (d DedupFilter) Apply(input string) string {
-	lines, trailing := splitLines(input)
-	if len(lines) == 0 {
-		return input
-	}
-	var out []string
-	i := 0
-	for i < len(lines) {
-		j := i + 1
-		for j < len(lines) && lines[j] == lines[i] {
-			j++
-		}
-		out = append(out, collapseRun(lines[i], j-i)...)
-		i = j
-	}
-	return joinLines(out, trailing)
+// Dedup collapses a run of identical consecutive lines into one summary line.
+//
+// It holds a single line back so it can tell where a run ends, which is all the
+// buffering run-length encoding needs; memory does not grow with the run.
+type Dedup struct {
+	tracker
+	MinRun int
+
+	prev  Line
+	held  bool
+	count int
 }
 
-// collapseRun turns a run of count identical lines into the lines to emit.
-// Runs of three or more collapse to a single summary line; shorter runs are
-// passed through so that small outputs are never rewritten.
-func collapseRun(line string, count int) []string {
-	if count < 3 || strings.TrimSpace(line) == "" {
-		out := make([]string, count)
-		for i := range out {
-			out[i] = line
-		}
-		return out
+// NewDedup returns a Dedup using the default minimum run length.
+func NewDedup() *Dedup { return &Dedup{MinRun: DefaultMinRun} }
+
+// Name implements LineFilter.
+func (d *Dedup) Name() string { return "dedup" }
+
+// Process implements LineFilter.
+func (d *Dedup) Process(l Line, emit Emit) {
+	if l.Protected {
+		d.flushRun(emit)
+		emit(l)
+		return
 	}
-	return []string{"[Repeated " + strconv.Itoa(count) + " times: " + line + "]"}
+	if d.held && l.Text == d.prev.Text {
+		d.count++
+		return
+	}
+	d.flushRun(emit)
+	d.prev, d.held, d.count = l, true, 1
+}
+
+// Flush implements LineFilter.
+func (d *Dedup) Flush(emit Emit) { d.flushRun(emit) }
+
+func (d *Dedup) flushRun(emit Emit) {
+	if !d.held {
+		return
+	}
+	minRun := d.MinRun
+	if minRun < 2 {
+		minRun = DefaultMinRun
+	}
+	// Blank-line runs are left alone: collapsing them saves almost nothing and
+	// makes the output harder to read.
+	if d.count >= minRun && !blank(d.prev.Text) {
+		emit(Line{Text: "[Repeated " + strconv.Itoa(d.count) + " times: " + strings.TrimRight(d.prev.Text, " \t") + "]"})
+		d.markChanged()
+	} else {
+		for i := 0; i < d.count; i++ {
+			emit(d.prev)
+		}
+	}
+	d.held, d.count = false, 0
 }
