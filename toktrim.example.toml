@@ -1,0 +1,47 @@
+# toktrim configuration
+#
+# Place this file as toktrim.toml in a project root, or in
+# ~/.config/toktrim/toktrim.toml for defaults across all projects. A project
+# file wins over the user file, setting by setting. Only the settings you want
+# to change need to be present.
+#
+# Supported value types: strings, integers and booleans. Anything else is
+# reported as an error and the file is ignored, so a typo is visible rather
+# than silently doing nothing.
+
+# Set to false to make toktrim a transparent pass-through. Equivalent to
+# TOKTRIM_DISABLE=1 in the environment.
+enabled = true
+
+# Output at or below BOTH of these limits is emitted byte-for-byte unchanged.
+passthrough_lines = 40
+passthrough_bytes = 2048
+
+# How many lines around a line carrying failure information are preserved.
+context_before = 3
+context_after = 3
+
+# The shortest run of identical lines the dedup filter collapses.
+min_run = 3
+
+# Where the full-output log goes when anything is trimmed. Empty means the
+# system temp directory. Also settable with TOKTRIM_RAW_LOG_DIR.
+raw_log_dir = ""
+
+# Generic head/tail truncation limits, applied to output no other filter
+# recognises. Lines carrying failure information are kept wherever they are.
+[truncate]
+head_lines = 30
+tail_lines = 60
+
+# Per-filter switches. Every filter is on unless listed here as false.
+# "guard" is not listed: it is what keeps failures from being dropped, so it
+# cannot be turned off.
+[filters]
+ansi = true          # strip colour codes, resolve \r redraws, collapse progress
+node-install = true  # npm / pnpm / yarn install noise
+test-runner = true   # jest / vitest / pytest / go test / cargo test
+docker-build = true  # docker build step and layer progress
+dotnet = true        # dotnet build / test restore and per-project lines
+dedup = true         # collapse runs of identical lines
+truncate = true      # head/tail truncation for everything else

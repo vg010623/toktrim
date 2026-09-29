@@ -1,0 +1,4 @@
+Hand-built to exercise the ANSI filter against the shapes real tools emit:
+SGR colour codes, a spinner and a download bar redrawn in place with \r,
+progress lines emitted one per newline, and an OSC hyperlink. Real captures
+are unusable as fixtures here because a tool only emits escapes to a tty.

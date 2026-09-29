@@ -1,0 +1,3 @@
+Captured with `npm test` (jest 29, npm 11.19.1) on a suite with two genuinely
+failing assertions: a toBe mismatch and a toThrow that did not throw. Local
+paths were rewritten to /home/dev/project.

@@ -3,3 +3,5 @@
 *.exe
 # Go workspace
 vendor/
+/dist/
+*.save

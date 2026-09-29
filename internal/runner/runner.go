@@ -1,119 +1,179 @@
+// Package runner executes a command and streams its output through the filter
+// pipeline.
 package runner
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"strings"
-	"sync"
-	"syscall"
+	"os/signal"
 
-	"github.com/yourusername/toktrim/internal/filter"
-	"github.com/yourusername/toktrim/internal/tokenizer"
+	"github.com/vg010623/toktrim/internal/config"
+	"github.com/vg010623/toktrim/internal/filter"
+	"github.com/vg010623/toktrim/internal/pipeline"
+	"github.com/vg010623/toktrim/internal/tokenizer"
 )
 
-// ExecuteCommand runs the given command, filters its combined output,
-// prints filtered output to stdout and token analytics to stderr.
-func ExecuteCommand(args []string) {
+// ExitCommandNotFound is the conventional shell exit code for a command that
+// could not be started at all.
+const ExitCommandNotFound = 127
+
+// Run executes args, filters the output as it arrives, and returns the exit
+// code the caller should exit with.
+//
+// Output is always written before Run returns: a failing command must still
+// show why it failed.
+func Run(args []string, cfg *config.Config) int {
+	if cfg == nil {
+		cfg = config.Default()
+	}
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "error: no command provided")
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "toktrim: no command provided")
+		return ExitCommandNotFound
 	}
+
+	// One OS pipe shared by stdout and stderr keeps the two interleaved in the
+	// order the child wrote them. os/exec hands the same descriptor to both
+	// when Stdout and Stderr are the same *os.File.
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "toktrim: cannot create pipe: %v\n", err)
+		return ExitCommandNotFound
+	}
+
 	cmd := exec.Command(args[0], args[1:]...)
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating stdout pipe: %v\n", err)
-		os.Exit(1)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating stderr pipe: %v\n", err)
-		os.Exit(1)
-	}
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = pw
+	cmd.Stderr = pw
 
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "error starting command: %v\n", err)
-		os.Exit(1)
+		pw.Close()
+		pr.Close()
+		fmt.Fprintf(os.Stderr, "toktrim: cannot start %q: %v\n", args[0], err)
+		return ExitCommandNotFound
 	}
+	// The parent's write end must be closed or the read below never sees EOF.
+	pw.Close()
 
-	var stdoutBuf, stderrBuf strings.Builder
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		io.Copy(&stdoutBuf, stdoutPipe)
-	}()
-	go func() {
-		defer wg.Done()
-		io.Copy(&stderrBuf, stderrPipe)
-	}()
-	wg.Wait()
+	stopSignals := forwardSignals(cmd)
+	defer stopSignals()
 
-	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-				os.Exit(status.ExitStatus())
-			}
+	stdout := bufio.NewWriter(os.Stdout)
+	proc := pipeline.New(stdout, pipeline.Options{
+		Filters:          filter.Chain(args, cfg),
+		PassthroughLines: cfg.PassthroughLines,
+		PassthroughBytes: cfg.PassthroughBytes,
+		RawLogDir:        cfg.RawLogDir,
+		Label:            args[0],
+	})
+
+	// Copy through the processor as output arrives. If the command is killed --
+	// by Claude Code's Bash timeout, or a Ctrl-C -- everything already read has
+	// been processed and is flushed by Close below.
+	_, copyErr := io.Copy(proc, pr)
+	pr.Close()
+
+	waitErr := cmd.Wait()
+
+	closeErr := proc.Close()
+	flushErr := stdout.Flush()
+
+	for _, e := range []error{copyErr, closeErr, flushErr} {
+		if e != nil && !errors.Is(e, os.ErrClosed) {
+			fmt.Fprintf(os.Stderr, "toktrim: %v\n", e)
 		}
-		fmt.Fprintf(os.Stderr, "warning: command exited with error: %v\n", err)
-		os.Exit(1)
 	}
 
-	raw := stdoutBuf.String() + stderrBuf.String()
-	filtered := applyFilters(raw)
-	fmt.Print(filtered)
-	printTokenStats(raw, filtered)
+	reportStats(proc)
+	return exitCodeOf(waitErr)
 }
 
-// ProcessStdin reads from stdin, applies filters, writes to stdout,
-// and prints token analytics to stderr.
-func ProcessStdin() {
-	var input strings.Builder
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		input.WriteString(scanner.Text())
-		input.WriteByte('\n')
+// exitCodeOf maps the error from Cmd.Wait onto a process exit code.
+func exitCodeOf(err error) int {
+	if err == nil {
+		return 0
 	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "error reading stdin: %v\n", err)
-		os.Exit(1)
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if code := exitErr.ExitCode(); code >= 0 {
+			return code
+		}
+		// Killed by a signal; report it the way a shell does.
+		return 128
 	}
-	raw := input.String()
-	filtered := applyFilters(raw)
-	fmt.Print(filtered)
-	printTokenStats(raw, filtered)
+	return 1
 }
 
-// applyFilters runs the filter pipeline and returns filtered string.
-func applyFilters(input string) string {
-	filters := []filter.Filter{
-		&filter.TestRunnerFilter{},
-		&filter.DedupFilter{},
-		&filter.DiffFilter{},
+// ProcessStdin filters output arriving on stdin.
+func ProcessStdin(cfg *config.Config) int {
+	if cfg == nil {
+		cfg = config.Default()
 	}
-	var current string = input
-	for _, f := range filters {
-		current = f.Apply(current)
+	stdout := bufio.NewWriter(os.Stdout)
+	proc := pipeline.New(stdout, pipeline.Options{
+		Filters:          filter.Chain(nil, cfg),
+		PassthroughLines: cfg.PassthroughLines,
+		PassthroughBytes: cfg.PassthroughBytes,
+		RawLogDir:        cfg.RawLogDir,
+		Label:            "pipe",
+	})
+	if _, err := io.Copy(proc, os.Stdin); err != nil {
+		fmt.Fprintf(os.Stderr, "toktrim: error reading stdin: %v\n", err)
+		proc.Close()
+		stdout.Flush()
+		return 1
 	}
-	return current
+	proc.Close()
+	stdout.Flush()
+	reportStats(proc)
+	return 0
 }
 
-// printTokenStats computes token counts before and after filtering and prints to stderr.
-func printTokenStats(raw, filtered string) {
-	tok, err := tokenizer.NewTokenizer()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error initializing tokenizer: %v\n", err)
+// reportStats prints the estimated saving, but only when the user opts in.
+//
+// Claude Code forwards the Bash tool's stderr to the model, so unconditional
+// telemetry on stderr would cost the tokens it claims to save.
+func reportStats(proc *pipeline.Processor) {
+	if os.Getenv("TOKTRIM_STATS") != "1" {
 		return
 	}
-	rawTokens := tok.Count(raw)
-	filteredTokens := tok.Count(filtered)
-	saved := rawTokens - filteredTokens
-	var savedDollar float64
-	// Rough estimate: $0.003 per 1k tokens for GPT-4o input (output similar)
-	// We'll just compute savings as (saved / 1000) * 0.003 (approx)
-	savedDollar = float64(saved) / 1000.0 * 0.003
-	fmt.Fprintf(os.Stderr, "[toktrim] Tokens: %d -> %d (%.1f%%) | Saved: ~$%.4f\n",
-		rawTokens, filteredTokens, float64(saved)/float64(rawTokens)*100, savedDollar)
+	s := proc.Stats()
+	if !s.Filtered {
+		fmt.Fprintf(os.Stderr, "[toktrim] %d lines passed through unchanged\n", s.LinesIn)
+		return
+	}
+	inTok, outTok := tokenizer.EstimateBytes(s.BytesIn), tokenizer.EstimateBytes(s.BytesOut)
+	var pct float64
+	if inTok > 0 {
+		pct = float64(inTok-outTok) / float64(inTok) * 100
+	}
+	fmt.Fprintf(os.Stderr, "[toktrim] %d -> %d lines, ~%d -> ~%d est. tokens (-%.1f%%)\n",
+		s.LinesIn, s.LinesOut, inTok, outTok, pct)
+}
+
+// forwardSignals relays interrupt and terminate signals to the child and
+// returns a function that stops relaying.
+func forwardSignals(cmd *exec.Cmd) func() {
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, interruptSignals()...)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case s := <-ch:
+				if cmd.Process != nil {
+					forwardSignal(cmd.Process, s)
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() {
+		signal.Stop(ch)
+		close(done)
+	}
 }

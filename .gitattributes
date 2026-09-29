@@ -1,0 +1,9 @@
+# Go source is always LF. Without this, a Windows checkout converts it to CRLF
+# and `gofmt -l` reports every file as unformatted.
+* text=auto eol=lf
+
+# Fixtures are compared byte for byte and some contain deliberate ESC and CR
+# bytes, so git must not touch them on any platform.
+testdata/** -text
+
+*.exe binary

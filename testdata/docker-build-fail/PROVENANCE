@@ -1,0 +1,5 @@
+Transcribed from a real `docker build` run against Docker BuildKit 0.12
+(progress=plain). Docker is not installed on every machine that runs these
+tests, so the transcript is committed rather than regenerated. The shape --
+"#N [step/total] CMD", "#N <elapsed> <output>", "#N DONE"/"#N ERROR", and the
+exporting/writing-image trailer -- is BuildKit's plain progress format.

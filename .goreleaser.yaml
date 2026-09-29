@@ -1,0 +1,84 @@
+# goreleaser configuration for toktrim.
+# Validate with: goreleaser check
+# Dry run with:  goreleaser release --snapshot --clean
+version: 2
+
+project_name: toktrim
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - id: toktrim
+    main: ./cmd/toktrim
+    binary: toktrim
+    env:
+      # toktrim shells out but links nothing, so a static binary runs anywhere.
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      # Windows on ARM is not a target anyone has asked for yet.
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/vg010623/toktrim/internal/version.version={{ .Version }}
+      - -X github.com/vg010623/toktrim/internal/version.commit={{ .FullCommit }}
+      - -X github.com/vg010623/toktrim/internal/version.date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  # Windows users are told to drop a .exe on their PATH, so ship the binary
+  # itself rather than making them unpack an archive first.
+  - id: binaries
+    formats: [binary]
+    name_template: "toktrim_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+  # Archives carry the licence and readme alongside the binary.
+  - id: archives
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "toktrim_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - toktrim.example.toml
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Install
+
+    **Windows** (no Go required): download `toktrim_windows_amd64.exe` below,
+    rename it to `toktrim.exe`, and put it somewhere on your `PATH`.
+
+    **macOS / Linux**: download `toktrim_<os>_<arch>`, `chmod +x`, and move it
+    onto your `PATH`.
+
+    **With Go**: `go install github.com/vg010623/toktrim/cmd/toktrim@{{ .Tag }}`
+
+    Verify a download against `checksums.txt`.

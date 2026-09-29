@@ -1,0 +1,4 @@
+Transcribed from a real `dotnet build` run (SDK 8.0, MSBuild 17.8) on a
+four-project solution with one CS0168 warning and two errors. The .NET SDK is
+not installed on every machine that runs these tests, so the transcript is
+committed rather than regenerated.

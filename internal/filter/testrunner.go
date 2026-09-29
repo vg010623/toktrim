@@ -1,107 +1,142 @@
 package filter
 
 import (
-	"strings"
+	"regexp"
+	"strconv"
 )
 
-// TestRunnerFilter compresses verbose test output while preserving failures and stack traces.
-// In Go, we use slices and strings.Builder for efficient string manipulation.
-// Compared to TypeScript: Go strings are immutable, so we build results with strings.Builder.
-// Go's range over strings yields runes (Unicode code points), not bytes.
-type TestRunnerFilter struct{}
+var (
+	// A failing block starts here and runs until the next suite header.
+	testFailureStart = regexp.MustCompile(`^\s*(FAIL|✕|×|✗)\b` + // jest/vitest suite or case
+		`|^\s*●` + // jest failure detail
+		`|^\s*--- FAIL:` + // go test
+		`|^(FAILED|ERROR)\b` + // pytest
+		`|^\s*\d+\)\s` + // mocha numbered failure
+		`|^\s*(test result: FAILED|failures:)`)
 
-// Apply processes the input string and returns filtered output.
-// Heuristics:
-// - Keep lines that look like failures (contain "FAIL", "error", "panic", "stacktrace")
-// - Keep lines that are part of a stack trace (indented or starting with "at ")
-// - Drop lines ending with "... ok" (passing tests)
-// - Drop lines with just checkmarks or dots (progress indicators)
-// - Drop download/compilation progress lines (often contain "downloading", "compiling")
-// - Also drop lines that indicate a passing test (contain "PASS" but not "FAIL")
-func (t TestRunnerFilter) Apply(input string) string {
-	if input == "" {
-		return ""
+	// A new suite header ends whatever block was open.
+	testBlockEnd = regexp.MustCompile(`^\s*(PASS|RUN|✓|√)\b` +
+		`|^\s*(Test Suites|Tests|Snapshots|Time|Duration|Ran all test suites)\b`)
+
+	// Passing noise, dropped when no failure block is open.
+	testPassLine = regexp.MustCompile(`^\s*(PASS|✓|√)\b` + // jest/vitest pass
+		`|^\s*ok\s+\S+\s+[\d.]+s` + // go test
+		`|^\s*---\s+PASS:` +
+		`|^\s*RUN\s+v[\d.]+` + // vitest banner
+		`|^\s*\S+\s+\.+\s*(ok|PASSED)\s*$` + // pytest dots form
+		`|^\s*(Determining|Collecting|collected)\s`)
+
+	// The summary block is always worth keeping.
+	testSummary = regexp.MustCompile(`^\s*(Test Suites|Tests|Snapshots|Time|Duration|Start at):` +
+		`|^\s*Ran all test suites` +
+		`|(?i)^\s*\d+ (passing|pending|failing)\b` +
+		`|(?i)^=+ .*(passed|failed|error).* =+$` + // pytest summary rule
+		`|^\s*test result:` + // cargo
+		`|(?i)^\s*(Passed!|Failed!)\s+-\s+Failed:` + // dotnet test
+		`|^\s*Tests? (run|Run):`)
+)
+
+// TestRunner compresses jest, vitest, mocha, pytest, go test and cargo test
+// output while keeping every failing test intact.
+//
+// It is block aware: once a failure block opens, every line is kept until the
+// next suite header, so a failing test's name, assertion and stack frames all
+// survive even when they run past Guard's context window.
+type TestRunner struct {
+	tracker
+
+	inFailure   bool
+	droppedPass int
+}
+
+// NewTestRunner returns a TestRunner filter.
+func NewTestRunner() *TestRunner { return &TestRunner{} }
+
+// Name implements LineFilter.
+func (tr *TestRunner) Name() string { return "test-runner" }
+
+// Process implements LineFilter.
+func (tr *TestRunner) Process(l Line, emit Emit) {
+	switch {
+	case testFailureStart.MatchString(l.Text):
+		tr.inFailure = true
+		emit(l)
+		return
+	case tr.inFailure && testBlockEnd.MatchString(l.Text):
+		tr.inFailure = false
+		// Fall through: the header itself is judged on its own merits below.
+	case tr.inFailure:
+		// Inside a failure block everything is kept, blank lines included.
+		emit(l)
+		return
 	}
-	var out strings.Builder
-	lines := strings.Split(input, "\n")
-	for _, line := range lines {
-		if t.shouldKeep(line) {
-			out.WriteString(line)
-			out.WriteByte('\n')
+
+	if l.Protected || testSummary.MatchString(l.Text) {
+		emit(l)
+		return
+	}
+	if testPassLine.MatchString(l.Text) {
+		tr.droppedPass++
+		tr.markChanged()
+		return
+	}
+	emit(l)
+}
+
+// Flush implements LineFilter.
+func (tr *TestRunner) Flush(emit Emit) {
+	if tr.droppedPass > 0 {
+		emit(Line{Text: "[toktrim] dropped " + strconv.Itoa(tr.droppedPass) + " passing-test lines"})
+	}
+	tr.droppedPass = 0
+	tr.inFailure = false
+}
+
+// LooksLikeTestOutput reports whether a line is a marker of a JS test runner.
+// The chain uses it to switch the test filter on for `npm run <script>` when
+// the script turns out to be jest or vitest.
+func LooksLikeTestOutput(s string) bool {
+	return jsTestMarker.MatchString(s)
+}
+
+var jsTestMarker = regexp.MustCompile(`^\s*(PASS|FAIL)\s+\S+\.(test|spec)\.` +
+	`|^\s*Test Suites:` +
+	`|^\s*RUN\s+v[\d.]+` +
+	`|^\s*(Tests|Snapshots):\s+\d` +
+	`|jest|vitest`)
+
+// AutoTestRunner behaves as a pass-through until the output looks like a JS test
+// runner, then hands over to TestRunner.
+//
+// `npm run <script>` can be anything, so the filter cannot be chosen from the
+// command line alone. Lines seen before the runner identifies itself are passed
+// through unchanged, which costs a few tokens at the top of the output and
+// avoids compressing output the filter does not understand.
+type AutoTestRunner struct {
+	inner    *TestRunner
+	detected bool
+}
+
+// NewAutoTestRunner returns an AutoTestRunner.
+func NewAutoTestRunner() *AutoTestRunner { return &AutoTestRunner{inner: NewTestRunner()} }
+
+// Name implements LineFilter.
+func (a *AutoTestRunner) Name() string { return "test-runner" }
+
+// Process implements LineFilter.
+func (a *AutoTestRunner) Process(l Line, emit Emit) {
+	if !a.detected {
+		if !LooksLikeTestOutput(l.Text) {
+			emit(l)
+			return
 		}
+		a.detected = true
 	}
-	// Remove trailing newline if we added one (but keep if original had it)
-	result := out.String()
-	if result != "" && result[len(result)-1] == '\n' && !strings.HasSuffix(input, "\n") {
-		result = result[:len(result)-1]
-	}
-	return result
+	a.inner.Process(l, emit)
 }
 
-// shouldKeep returns true if the line should be kept in output.
-func (t TestRunnerFilter) shouldKeep(line string) bool {
-	// Trim spaces for checks
-	trimmed := strings.TrimSpace(line)
-	if trimmed == "" {
-		// Keep empty lines for readability? We'll keep them.
-		return true
-	}
-	lower := strings.ToLower(trimmed)
+// Flush implements LineFilter.
+func (a *AutoTestRunner) Flush(emit Emit) { a.inner.Flush(emit) }
 
-	// Keep failure indicators
-	if strings.Contains(lower, "fail") || strings.Contains(lower, "error") || strings.Contains(lower, "panic") {
-		return true
-	}
-	// Keep stack trace lines (common patterns)
-	if strings.HasPrefix(trimmed, "at ") || strings.HasPrefix(trimmed, "\t") || strings.HasPrefix(trimmed, "    ") {
-		return true
-	}
-	// Keep lines that look like assertions or expectations
-	if strings.Contains(lower, "expected") || strings.Contains(lower, "got") || strings.Contains(lower, "want") {
-		return true
-	}
-
-	// Drop lines ending with "... ok" (test passed)
-	if strings.HasSuffix(trimmed, "... ok") {
-		return false
-	}
-	// Drop progress indicators: just dots, checkmarks, or spinners
-	if isProgressIndicator(trimmed) {
-		return false
-	}
-	// Drop download/compilation noise
-	if strings.Contains(lower, "downloading") || strings.Contains(lower, "installing") ||
-		strings.Contains(lower, "compiling") || strings.Contains(lower, "building") {
-		return false
-	}
-	// Drop lines that indicate a passing test (contain "pass" but not "fail")
-	if strings.Contains(lower, "pass") && !strings.Contains(lower, "fail") {
-		return false
-	}
-	// Default: keep line
-	return true
-}
-
-// isProgressIndicator checks for common test progress patterns.
-func isProgressIndicator(s string) bool {
-	// Empty or just whitespace
-	if s == "" {
-		return false
-	}
-	// All dots
-	if strings.Trim(s, ".") == "" {
-		return true
-	}
-	// All checkmarks or crosses (unicode or ascii)
-	// We'll check if all runes are in a set of progress chars
-	progressChars := map[rune]bool{
-		'✓': true, '✔': true, '✕': true, '✖': true, '√': true, '×': true,
-		'.': true, ' ': true, // space alone handled above
-	}
-	for _, r := range s {
-		if !progressChars[r] {
-			return false
-		}
-	}
-	return true
-}
+// Changed implements LineFilter.
+func (a *AutoTestRunner) Changed() bool { return a.inner.Changed() }

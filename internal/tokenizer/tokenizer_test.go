@@ -2,22 +2,31 @@ package tokenizer
 
 import "testing"
 
-func TestTokenizer_Count(t *testing.T) {
-	tok, err := NewTokenizer()
-	if err != nil {
-		t.Fatalf("failed to create tokenizer: %v", err)
-	}
+func TestEstimate(t *testing.T) {
 	tests := []struct {
-		text string
+		name string
+		in   string
 		want int
 	}{
-		{text: "", want: 0},
-		{text: "hello world", want: 2}, // approximate; actual tokenization may differ but we trust tiktoken
-		{text: "foo bar baz", want: 3},
+		{"empty", "", 0},
+		{"shorter than one token", "ab", 1},
+		{"exactly one token", "abcd", 1},
+		{"multiple tokens", "0123456789ab", 3},
+		{"remainder is truncated", "0123456789abc", 3},
 	}
 	for _, tt := range tests {
-		if got := tok.Count(tt.text); got != tt.want {
-			t.Errorf("Tokenizer.Count(%q) = %d, want %d", tt.text, got, tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Estimate(tt.in); got != tt.want {
+				t.Errorf("Estimate(%q) = %d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEstimateNeverNegative(t *testing.T) {
+	for _, s := range []string{"", "a", "aa", "aaa"} {
+		if got := Estimate(s); got < 0 {
+			t.Errorf("Estimate(%q) = %d, want >= 0", s, got)
 		}
 	}
 }
