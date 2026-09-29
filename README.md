@@ -237,6 +237,11 @@ to the model, so unconditional telemetry would cost the tokens it claims to save
 - **`docker`/`dotnet` fixtures are transcripts, not captures.** Neither tool was
   installed on the machine the fixtures were recorded on; both files record
   their provenance.
+- **Raw logs are not cleaned up.** Every run that trims something leaves a
+  `toktrim-*.log` in the temp directory, because deleting it would defeat the
+  point of naming it in the output. They are small and the OS clears the temp
+  directory eventually; set `raw_log_dir` if you would rather collect them
+  somewhere you can prune yourself.
 
 ## Development
 
