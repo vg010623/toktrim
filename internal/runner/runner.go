@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/yourusername/toktrim/internal/filter"
 	"github.com/yourusername/toktrim/internal/tokenizer"
@@ -51,7 +52,13 @@ func ExecuteCommand(args []string) {
 	wg.Wait()
 
 	if err := cmd.Wait(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				os.Exit(status.ExitStatus())
+			}
+		}
 		fmt.Fprintf(os.Stderr, "warning: command exited with error: %v\n", err)
+		os.Exit(1)
 	}
 
 	raw := stdoutBuf.String() + stderrBuf.String()
