@@ -7,6 +7,7 @@ import (
 	"github.com/vg010623/toktrim/internal/config"
 	"github.com/vg010623/toktrim/internal/hook"
 	"github.com/vg010623/toktrim/internal/runner"
+	"github.com/vg010623/toktrim/internal/version"
 )
 
 const usage = `toktrim - trim verbose command output before it reaches an LLM
@@ -15,6 +16,7 @@ Usage:
   toktrim run -- <command> [args...]   run a command and filter its output
   toktrim pipe                         filter output arriving on stdin
   toktrim hook                         Claude Code PreToolUse hook (see README)
+  toktrim version                      print the version and exit
 
 "exec" is accepted as an alias for "run".
 
@@ -48,6 +50,8 @@ func main() {
 		os.Exit(runner.ProcessStdin(loadConfig()))
 	case "hook":
 		os.Exit(hook.Run(os.Stdin, os.Stdout))
+	case "version", "--version", "-V":
+		fmt.Print(version.Get().Long())
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:

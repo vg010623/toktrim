@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The hook targets Windows, where Claude Code's Bash tool runs under Git
+        # Bash, so Windows is a first-class target rather than an afterthought.
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          check-latest: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt
+        shell: bash
+        run: |
+          unformatted=$(gofmt -l . | grep -v '^$' || true)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test -race
+        run: go test -race ./...
+
+      - name: golden tests
+        run: go test -race -run TestGolden ./internal/golden/ -v
+
+      - name: hook JSON tests
+        run: go test -race -run 'TestAcceptance_Hook|TestClassify|TestShellQuote|TestHook' ./internal/hook/ ./cmd/toktrim/ -v
+
+      - name: acceptance tests
+        run: go test -race -run TestAcceptance ./... -v
+
+      - name: goldens are up to date
+        shell: bash
+        run: |
+          go test -run TestGolden ./internal/golden/ -update
+          if ! git diff --quiet -- testdata/; then
+            echo "Golden files are stale. Run: go test ./internal/golden -update"
+            git diff --stat -- testdata/
+            exit 1
+          fi
+
+  no-dependencies:
+    name: no dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      # toktrim must work with the network disabled, so it stays dependency-free.
+      # This is the guard against a dependency creeping back in.
+      - name: go.mod has no requirements
+        run: |
+          if grep -qE '^\s*require' go.mod; then
+            echo "go.mod has grown a dependency; toktrim is deliberately dependency-free."
+            cat go.mod
+            exit 1
+          fi
+      - name: build with the network disabled
+        run: GOFLAGS=-mod=mod GOPROXY=off go build ./...
+
+  goreleaser-check:
+    name: goreleaser check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
+      - name: build a snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+      # A prebuilt Windows binary is the whole point of the release, so assert
+      # it is in the artifact list under the name users will download. The
+      # binary-format archive keeps the file at its build path and records the
+      # upload name separately, so check the name rather than a path.
+      - name: the Windows exe is in the release
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          want = "toktrim_windows_amd64.exe"
+          names = {a["name"] for a in json.load(open("dist/artifacts.json"))}
+          if want not in names:
+              print(f"{want} missing from the release artifacts:")
+              print("\n".join(sorted(names)))
+              sys.exit(1)
+          print(f"{want} present")
+          PY
