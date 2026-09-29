@@ -1,119 +1,134 @@
 package runner
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"strings"
-	"sync"
-	"syscall"
 
-	"github.com/yourusername/toktrim/internal/filter"
-	"github.com/yourusername/toktrim/internal/tokenizer"
+	"github.com/vg010623/toktrim/internal/filter"
+	"github.com/vg010623/toktrim/internal/tokenizer"
 )
 
-// ExecuteCommand runs the given command, filters its combined output,
-// prints filtered output to stdout and token analytics to stderr.
+// ExitCommandNotFound is the conventional shell exit code for a command that
+// could not be started at all.
+const ExitCommandNotFound = 127
+
+// ExecuteCommand runs the given command with stdout and stderr merged into a
+// single ordered stream, prints the filtered output, and then exits with the
+// child's exit code.
+//
+// The output is always printed before the process exits: a failing command must
+// still show why it failed.
 func ExecuteCommand(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "error: no command provided")
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "toktrim: no command provided")
+		os.Exit(ExitCommandNotFound)
 	}
+
+	// A single OS pipe shared by stdout and stderr keeps the two interleaved in
+	// the order the child actually wrote them. os/exec passes the same file
+	// descriptor to both when Stdout and Stderr are the same *os.File.
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "toktrim: cannot create pipe: %v\n", err)
+		os.Exit(ExitCommandNotFound)
+	}
+
 	cmd := exec.Command(args[0], args[1:]...)
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating stdout pipe: %v\n", err)
-		os.Exit(1)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating stderr pipe: %v\n", err)
-		os.Exit(1)
-	}
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = pw
+	cmd.Stderr = pw
 
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "error starting command: %v\n", err)
-		os.Exit(1)
+		pw.Close()
+		pr.Close()
+		fmt.Fprintf(os.Stderr, "toktrim: cannot start %q: %v\n", args[0], err)
+		os.Exit(ExitCommandNotFound)
 	}
 
-	var stdoutBuf, stderrBuf strings.Builder
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		io.Copy(&stdoutBuf, stdoutPipe)
-	}()
-	go func() {
-		defer wg.Done()
-		io.Copy(&stderrBuf, stderrPipe)
-	}()
-	wg.Wait()
+	// The parent's write end must be closed or the read below never sees EOF.
+	pw.Close()
 
-	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-				os.Exit(status.ExitStatus())
-			}
+	raw, readErr := io.ReadAll(pr)
+	pr.Close()
+	if readErr != nil {
+		fmt.Fprintf(os.Stderr, "toktrim: error reading command output: %v\n", readErr)
+	}
+
+	waitErr := cmd.Wait()
+
+	filtered := applyFilters(string(raw))
+	io.WriteString(os.Stdout, filtered)
+	printTokenStats(string(raw), filtered)
+
+	os.Exit(exitCodeOf(waitErr))
+}
+
+// exitCodeOf maps the error returned by Cmd.Wait to a process exit code.
+func exitCodeOf(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exitErr *exec.ExitError
+	if ok := asExitError(err, &exitErr); ok {
+		if code := exitErr.ExitCode(); code >= 0 {
+			return code
 		}
-		fmt.Fprintf(os.Stderr, "warning: command exited with error: %v\n", err)
-		os.Exit(1)
+		// Killed by a signal: report it the way a shell does.
+		return 128
 	}
-
-	raw := stdoutBuf.String() + stderrBuf.String()
-	filtered := applyFilters(raw)
-	fmt.Print(filtered)
-	printTokenStats(raw, filtered)
+	return 1
 }
 
-// ProcessStdin reads from stdin, applies filters, writes to stdout,
-// and prints token analytics to stderr.
+func asExitError(err error, target **exec.ExitError) bool {
+	if e, ok := err.(*exec.ExitError); ok {
+		*target = e
+		return true
+	}
+	return false
+}
+
+// ProcessStdin reads stdin, applies filters and writes the result to stdout.
 func ProcessStdin() {
-	var input strings.Builder
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		input.WriteString(scanner.Text())
-		input.WriteByte('\n')
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "error reading stdin: %v\n", err)
+	raw, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "toktrim: error reading stdin: %v\n", err)
 		os.Exit(1)
 	}
-	raw := input.String()
-	filtered := applyFilters(raw)
-	fmt.Print(filtered)
-	printTokenStats(raw, filtered)
+	filtered := applyFilters(string(raw))
+	io.WriteString(os.Stdout, filtered)
+	printTokenStats(string(raw), filtered)
 }
 
-// applyFilters runs the filter pipeline and returns filtered string.
+// applyFilters runs the filter pipeline and returns the filtered string.
 func applyFilters(input string) string {
 	filters := []filter.Filter{
 		&filter.TestRunnerFilter{},
 		&filter.DedupFilter{},
 		&filter.DiffFilter{},
 	}
-	var current string = input
+	current := input
 	for _, f := range filters {
 		current = f.Apply(current)
 	}
 	return current
 }
 
-// printTokenStats computes token counts before and after filtering and prints to stderr.
+// printTokenStats reports the estimated saving, but only when the user opts in.
+//
+// Claude Code forwards the Bash tool's stderr to the model, so unconditional
+// telemetry on stderr would itself cost tokens on every command.
 func printTokenStats(raw, filtered string) {
-	tok, err := tokenizer.NewTokenizer()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error initializing tokenizer: %v\n", err)
+	if os.Getenv("TOKTRIM_STATS") != "1" {
 		return
 	}
-	rawTokens := tok.Count(raw)
-	filteredTokens := tok.Count(filtered)
-	saved := rawTokens - filteredTokens
-	var savedDollar float64
-	// Rough estimate: $0.003 per 1k tokens for GPT-4o input (output similar)
-	// We'll just compute savings as (saved / 1000) * 0.003 (approx)
-	savedDollar = float64(saved) / 1000.0 * 0.003
-	fmt.Fprintf(os.Stderr, "[toktrim] Tokens: %d -> %d (%.1f%%) | Saved: ~$%.4f\n",
-		rawTokens, filteredTokens, float64(saved)/float64(rawTokens)*100, savedDollar)
+	rawTokens := tokenizer.Estimate(raw)
+	filteredTokens := tokenizer.Estimate(filtered)
+	if rawTokens == 0 {
+		return
+	}
+	pct := float64(rawTokens-filteredTokens) / float64(rawTokens) * 100
+	fmt.Fprintf(os.Stderr, "[toktrim] ~%d -> ~%d est. tokens (-%.1f%%)\n",
+		rawTokens, filteredTokens, pct)
 }

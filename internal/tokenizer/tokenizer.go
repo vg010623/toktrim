@@ -1,43 +1,24 @@
+// Package tokenizer provides a dependency-free, offline token estimate.
+//
+// toktrim deliberately does not use a real BPE tokenizer: every Go
+// implementation either bundles a large vocabulary or downloads one at
+// runtime, and toktrim must work with the network disabled. The
+// chars/4 heuristic is within a few percent of cl100k_base on log-shaped
+// text, which is all that is needed to report how much was trimmed.
 package tokenizer
 
-import (
-	"fmt"
+// CharsPerToken is the divisor used by the estimate.
+const CharsPerToken = 4
 
-	"github.com/pkoukk/tiktoken-go"
-)
-
-// Tokenizer counts tokens using tiktoken-go with cl100k_base encoding (GPT-4o compatible).
-// In Go, we initialize the encoder once and reuse it.
-// Compared to TypeScript: Go encourages reuse of expensive resources via init or constructor functions.
-type Tokenizer struct {
-	enc *tiktoken.Tiktoken
-}
-
-// NewTokenizer creates a Tokenizer initialized with cl100k_base encoding.
-func NewTokenizer() (*Tokenizer, error) {
-	enc, err := tiktoken.GetEncoding("cl100k_base")
-	if err != nil {
-		return nil, fmt.Errorf("failed to load cl100k_base encoding: %w", err)
+// Estimate returns the approximate number of tokens in text.
+// The result is an estimate and is always labelled as such when reported.
+func Estimate(text string) int {
+	if text == "" {
+		return 0
 	}
-	return &Tokenizer{enc: enc}, nil
-}
-
-// Count returns the number of tokens in the given text.
-func (t *Tokenizer) Count(text string) int {
-	return len(t.Encodify(text))
-}
-
-// Encodify returns the token IDs for the text (useful for debugging).
-func (t *Tokenizer) Encodify(text string) []int {
-	return t.enc.Encode(text, nil, nil)
-}
-
-// Encode is alias for Encodify.
-func (t *Tokenizer) Encode(text string) []int {
-	return t.Encodify(text)
-}
-
-// Decode returns string from token IDs.
-func (t *Tokenizer) Decode(tokens []int) string {
-	return t.enc.Decode(tokens)
+	n := len(text) / CharsPerToken
+	if n == 0 {
+		return 1
+	}
+	return n
 }

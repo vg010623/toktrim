@@ -16,9 +16,9 @@ func TestTestRunnerFilter_Apply(t *testing.T) {
     at Object.<anonymous> (test/bar.test.js:10:22)
  PASS test/baz.test.js
 `,
-			expected: `FAIL test/bar.test.js
- expect(received).toBe(expected) // Expected: "foo", Received: "bar"
-   at Object.<anonymous> (test/bar.test.js:10:22)
+			expected: ` FAIL test/bar.test.js
+  expect(received).toBe(expected) // Expected: "foo", Received: "bar"
+    at Object.<anonymous> (test/bar.test.js:10:22)
 `,
 		},
 		{

@@ -1,104 +1,78 @@
 package filter
 
 import (
+	"strconv"
 	"strings"
 )
 
-// DiffFilter collapses noisy lockfile diffs into a summary line.
-// It detects lines that are part of a diff for common lockfiles and replaces
-// extensive changes with a concise summary.
+// DiffFilter collapses noisy lockfile diffs into a single summary line.
+// Diffs for other files are passed through unchanged.
 type DiffFilter struct{}
+
+// minLockfileChanges is the number of changed lines a lockfile diff must have
+// before it is worth collapsing.
+const minLockfileChanges = 5
 
 // Apply processes input and returns filtered output.
 func (d DiffFilter) Apply(input string) string {
-	if input == "" {
-		return ""
+	lines, trailing := splitLines(input)
+	if len(lines) == 0 {
+		return input
 	}
-	var out strings.Builder
-	lines := strings.Split(input, "\n")
-	i := 0
-	for i < len(lines) {
-		line := lines[i]
-		if strings.HasPrefix(line, "diff --git") {
-			// Potential lockfile diff
-			parts := strings.Split(line, " ")
-			var filename string
-			if len(parts) >= 4 {
-				filename = strings.TrimPrefix(parts[3], "b/")
-			}
-			if isLockfile(filename) {
-				// Skip until next diff header or end
-				var changeCount int
-				j := i + 1
-				for j < len(lines) && !strings.HasPrefix(lines[j], "diff --git") {
-					if strings.HasPrefix(lines[j], "+") || strings.HasPrefix(lines[j], "-") {
-						if !strings.HasPrefix(lines[j], "@@") {
-							changeCount++
-						}
-					}
-					j++
-				}
-				if changeCount >= 5 {
-					out.WriteString("[Lockfile changed: ")
-					out.WriteString(filename)
-					out.WriteString(" (")
-					out.WriteString(diffIntToString(changeCount))
-					out.WriteString(" lines changed)]\n")
-				} else {
-				 // Output the lines as is (we didn't store them, but for simplicity we output original segment)
-				 // To keep it simple, we'll just output the original lines (inefficient but ok for demo)
-				 for k := i; k < j; k++ {
-					 out.WriteString(lines[k])
-					 out.WriteByte('\n')
-				 }
-				}
-				i = j
-				continue
-			}
+
+	var out []string
+	for i := 0; i < len(lines); {
+		if !strings.HasPrefix(lines[i], "diff --git") {
+			out = append(out, lines[i])
+			i++
+			continue
 		}
-		// Not a lockfile diff header, output line
-		out.WriteString(line)
-		out.WriteByte('\n')
-		i++
+
+		// Find the extent of this file's diff.
+		j := i + 1
+		changes := 0
+		for j < len(lines) && !strings.HasPrefix(lines[j], "diff --git") {
+			if isDiffChange(lines[j]) {
+				changes++
+			}
+			j++
+		}
+
+		if name := diffTargetFile(lines[i]); isLockfile(name) && changes >= minLockfileChanges {
+			out = append(out, "[Lockfile changed: "+name+" ("+strconv.Itoa(changes)+" lines changed)]")
+		} else {
+			out = append(out, lines[i:j]...)
+		}
+		i = j
 	}
-	result := out.String()
-	if result != "" && result[len(result)-1] == '\n' && !strings.HasSuffix(input, "\n") {
-		result = result[:len(result)-1]
-	}
-	return result
+	return joinLines(out, trailing)
 }
 
-// isLockfile checks if filename is a known lockfile.
+// isDiffChange reports whether a diff body line adds or removes content.
+// The "+++"/"---" file headers are not content changes.
+func isDiffChange(line string) bool {
+	if strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---") {
+		return false
+	}
+	return strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-")
+}
+
+// diffTargetFile extracts the b/ path from a "diff --git a/x b/x" header.
+func diffTargetFile(header string) string {
+	fields := strings.Fields(header)
+	if len(fields) < 4 {
+		return ""
+	}
+	return strings.TrimPrefix(fields[3], "b/")
+}
+
+// isLockfile reports whether name is a known dependency lockfile.
 func isLockfile(name string) bool {
-	name = strings.ToLower(name)
-	switch name {
-	case "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "cargo.lock",
-		"poetry.lock", "Pipfile.lock", "go.sum":
+	switch strings.ToLower(name) {
+	case "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml",
+		"bun.lockb", "cargo.lock", "poetry.lock", "pipfile.lock", "uv.lock",
+		"composer.lock", "gemfile.lock", "go.sum", "packages.lock.json":
 		return true
 	}
 	return false
-}
-
-// diffIntToString converts integer to string.
-func diffIntToString(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	pos := len(buf)
-	neg := false
-	if i < 0 {
-		neg = true
-		i = -i
-	}
-	for i > 0 {
-		pos--
-		buf[pos] = byte('0' + i%10)
-		i /= 10
-	}
-	if neg {
-		pos--
-		buf[pos] = '-'
-	}
-	return string(buf[pos:])
 }

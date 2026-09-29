@@ -4,26 +4,42 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yourusername/toktrim/internal/runner"
+	"github.com/vg010623/toktrim/internal/runner"
 )
+
+const usage = `toktrim - trim verbose command output before it reaches an LLM
+
+Usage:
+  toktrim run -- <command> [args...]   run a command and filter its output
+  toktrim pipe                         filter output arriving on stdin
+
+"exec" is accepted as an alias for "run".
+`
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <command> [args...]\n", os.Args[0])
-		os.Exit(1)
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
 	}
-	// The first argument is the subcommand (exec or pipe)
+
 	switch os.Args[1] {
-	case "exec":
-		if len(os.Args) < 3 || os.Args[2] != "--" {
-			fmt.Fprintf(os.Stderr, "Usage: %s exec -- <command> [args...]\n", os.Args[0])
-			os.Exit(1)
+	case "run", "exec":
+		args := os.Args[2:]
+		// The "--" separator is optional but conventional.
+		if len(args) > 0 && args[0] == "--" {
+			args = args[1:]
 		}
-		runner.ExecuteCommand(os.Args[3:])
+		if len(args) == 0 {
+			fmt.Fprintf(os.Stderr, "toktrim: %s needs a command\n\n%s", os.Args[1], usage)
+			os.Exit(2)
+		}
+		runner.ExecuteCommand(args)
 	case "pipe":
 		runner.ProcessStdin()
+	case "help", "-h", "--help":
+		fmt.Print(usage)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", os.Args[1])
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "toktrim: unknown subcommand %q\n\n%s", os.Args[1], usage)
+		os.Exit(2)
 	}
 }

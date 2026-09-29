@@ -19,23 +19,17 @@ type TestRunnerFilter struct{}
 // - Drop download/compilation progress lines (often contain "downloading", "compiling")
 // - Also drop lines that indicate a passing test (contain "PASS" but not "FAIL")
 func (t TestRunnerFilter) Apply(input string) string {
-	if input == "" {
-		return ""
+	lines, trailing := splitLines(input)
+	if len(lines) == 0 {
+		return input
 	}
-	var out strings.Builder
-	lines := strings.Split(input, "\n")
+	var out []string
 	for _, line := range lines {
 		if t.shouldKeep(line) {
-			out.WriteString(line)
-			out.WriteByte('\n')
+			out = append(out, line)
 		}
 	}
-	// Remove trailing newline if we added one (but keep if original had it)
-	result := out.String()
-	if result != "" && result[len(result)-1] == '\n' && !strings.HasSuffix(input, "\n") {
-		result = result[:len(result)-1]
-	}
-	return result
+	return joinLines(out, trailing)
 }
 
 // shouldKeep returns true if the line should be kept in output.
