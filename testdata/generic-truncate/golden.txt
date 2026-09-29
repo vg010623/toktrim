@@ -1,0 +1,102 @@
+[  1/400] CC   build/obj/module_001.o
+[  2/400] CC   build/obj/module_002.o
+[  3/400] CC   build/obj/module_003.o
+[  4/400] CC   build/obj/module_004.o
+[  5/400] CC   build/obj/module_005.o
+[  6/400] CC   build/obj/module_006.o
+[  7/400] CC   build/obj/module_007.o
+[  8/400] CC   build/obj/module_008.o
+[  9/400] CC   build/obj/module_009.o
+[ 10/400] CC   build/obj/module_010.o
+[ 11/400] CC   build/obj/module_011.o
+[ 12/400] CC   build/obj/module_012.o
+[ 13/400] CC   build/obj/module_013.o
+[ 14/400] CC   build/obj/module_014.o
+[ 15/400] CC   build/obj/module_015.o
+[ 16/400] CC   build/obj/module_016.o
+[ 17/400] CC   build/obj/module_017.o
+[ 18/400] CC   build/obj/module_018.o
+[ 19/400] CC   build/obj/module_019.o
+[ 20/400] CC   build/obj/module_020.o
+[ 21/400] CC   build/obj/module_021.o
+[ 22/400] CC   build/obj/module_022.o
+[ 23/400] CC   build/obj/module_023.o
+[ 24/400] CC   build/obj/module_024.o
+[ 25/400] CC   build/obj/module_025.o
+[ 26/400] CC   build/obj/module_026.o
+[ 27/400] CC   build/obj/module_027.o
+[ 28/400] CC   build/obj/module_028.o
+[ 29/400] CC   build/obj/module_029.o
+[ 30/400] CC   build/obj/module_030.o
+[toktrim] ... 306 lines elided; failures from the middle follow ...
+[178/400] CC   build/obj/module_178.o
+[179/400] CC   build/obj/module_179.o
+[180/400] CC   build/obj/module_180.o
+src/parser/lexer.c:214:9: error: implicit declaration of function 'strdupp'
+  214 |         name = strdupp(tok->text);
+      |                ^~~~~~~
+src/parser/lexer.c:214:9: note: did you mean 'strdup'?
+[181/400] CC   build/obj/module_181.o
+[182/400] CC   build/obj/module_182.o
+[183/400] CC   build/obj/module_183.o
+[toktrim] ... resuming at the last 60 lines ...
+[343/400] CC   build/obj/module_343.o
+[344/400] CC   build/obj/module_344.o
+[345/400] CC   build/obj/module_345.o
+[346/400] CC   build/obj/module_346.o
+[347/400] CC   build/obj/module_347.o
+[348/400] CC   build/obj/module_348.o
+[349/400] CC   build/obj/module_349.o
+[350/400] CC   build/obj/module_350.o
+[351/400] CC   build/obj/module_351.o
+[352/400] CC   build/obj/module_352.o
+[353/400] CC   build/obj/module_353.o
+[354/400] CC   build/obj/module_354.o
+[355/400] CC   build/obj/module_355.o
+[356/400] CC   build/obj/module_356.o
+[357/400] CC   build/obj/module_357.o
+[358/400] CC   build/obj/module_358.o
+[359/400] CC   build/obj/module_359.o
+[360/400] CC   build/obj/module_360.o
+src/net/socket.c:88:5: error: too few arguments to function 'connect'
+[361/400] CC   build/obj/module_361.o
+[362/400] CC   build/obj/module_362.o
+[363/400] CC   build/obj/module_363.o
+[364/400] CC   build/obj/module_364.o
+[365/400] CC   build/obj/module_365.o
+[366/400] CC   build/obj/module_366.o
+[367/400] CC   build/obj/module_367.o
+[368/400] CC   build/obj/module_368.o
+[369/400] CC   build/obj/module_369.o
+[370/400] CC   build/obj/module_370.o
+[371/400] CC   build/obj/module_371.o
+[372/400] CC   build/obj/module_372.o
+[373/400] CC   build/obj/module_373.o
+[374/400] CC   build/obj/module_374.o
+[375/400] CC   build/obj/module_375.o
+[376/400] CC   build/obj/module_376.o
+[377/400] CC   build/obj/module_377.o
+[378/400] CC   build/obj/module_378.o
+[379/400] CC   build/obj/module_379.o
+[380/400] CC   build/obj/module_380.o
+[381/400] CC   build/obj/module_381.o
+[382/400] CC   build/obj/module_382.o
+[383/400] CC   build/obj/module_383.o
+[384/400] CC   build/obj/module_384.o
+[385/400] CC   build/obj/module_385.o
+[386/400] CC   build/obj/module_386.o
+[387/400] CC   build/obj/module_387.o
+[388/400] CC   build/obj/module_388.o
+[389/400] CC   build/obj/module_389.o
+[390/400] CC   build/obj/module_390.o
+[391/400] CC   build/obj/module_391.o
+[392/400] CC   build/obj/module_392.o
+[393/400] CC   build/obj/module_393.o
+[394/400] CC   build/obj/module_394.o
+[395/400] CC   build/obj/module_395.o
+[396/400] CC   build/obj/module_396.o
+[397/400] CC   build/obj/module_397.o
+[398/400] CC   build/obj/module_398.o
+[399/400] CC   build/obj/module_399.o
+[400/400] CC   build/obj/module_400.o
+make: *** [Makefile:42: all] Error 1

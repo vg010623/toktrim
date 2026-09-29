@@ -1,0 +1,4 @@
+Captured with `npm install --loglevel=info` (npm 11.19.1, node v26.10.0) on a
+package.json requiring jest, eslint, request and gulp -- chosen because they
+pull in deprecated transitive dependencies. Local paths were rewritten to
+/home/dev/project.

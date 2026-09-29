@@ -48,3 +48,11 @@ func (t *tracker) Changed() bool { return t.changed }
 
 // blank reports whether a line has no visible content.
 func blank(s string) bool { return strings.TrimSpace(s) == "" }
+
+// plural returns word, pluralised when n is not 1.
+func plural(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+	return word + "s"
+}

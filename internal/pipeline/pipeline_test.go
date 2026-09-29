@@ -53,7 +53,7 @@ func TestSmallOutputIsByteForByteIdentical(t *testing.T) {
 	}
 	for _, in := range inputs {
 		for _, chunk := range []int{1, 3, 0} {
-			got, p := run(t, in, chunk, Options{Filters: []filter.LineFilter{filter.NewDedup()}})
+			got, p := run(t, in, chunk, Options{Filters: []filter.LineFilter{filter.NewGuard(), filter.NewDedup()}})
 			if got != in {
 				t.Errorf("chunk=%d: output not identical\n got %q\nwant %q", chunk, got, in)
 			}
@@ -67,7 +67,7 @@ func TestSmallOutputIsByteForByteIdentical(t *testing.T) {
 func TestLargeOutputIsFilteredAndLogged(t *testing.T) {
 	// 100 identical lines: over the line threshold, and highly compressible.
 	in := strings.Repeat("progress...\n", 100)
-	got, p := run(t, in, 7, Options{Filters: []filter.LineFilter{filter.NewDedup()}})
+	got, p := run(t, in, 7, Options{Filters: []filter.LineFilter{filter.NewGuard(), filter.NewDedup()}})
 
 	if strings.Count(got, "\n") >= 100 {
 		t.Errorf("output was not compressed: %d lines", strings.Count(got, "\n"))
@@ -110,7 +110,7 @@ func TestFailureLinesSurviveCompression(t *testing.T) {
 	b.WriteString("    at TCPConnectWrap.afterConnect (net.js:1146:16)\n")
 	in := b.String()
 
-	got, _ := run(t, in, 13, Options{Filters: []filter.LineFilter{filter.NewDedup()}})
+	got, _ := run(t, in, 13, Options{Filters: []filter.LineFilter{filter.NewGuard(), filter.NewDedup()}})
 
 	for _, must := range []string{
 		"npm ERR! code ELIFECYCLE",
@@ -134,7 +134,7 @@ func TestChunkBoundariesDoNotChangeResult(t *testing.T) {
 	var want string
 	for _, chunk := range []int{1, 2, 7, 64, 4096, 0} {
 		got, _ := run(t, in, chunk, Options{
-			Filters:  []filter.LineFilter{filter.NewDedup()},
+			Filters:  []filter.LineFilter{filter.NewGuard(), filter.NewDedup()},
 			NoFooter: true,
 		})
 		if want == "" {
@@ -150,7 +150,7 @@ func TestChunkBoundariesDoNotChangeResult(t *testing.T) {
 func TestNoTrailingNewlineIsStillProcessed(t *testing.T) {
 	in := strings.Repeat("x\n", 50) + "last line with no newline"
 	got, _ := run(t, in, 5, Options{
-		Filters:  []filter.LineFilter{filter.NewDedup()},
+		Filters:  []filter.LineFilter{filter.NewGuard(), filter.NewDedup()},
 		NoFooter: true,
 	})
 	if !strings.Contains(got, "last line with no newline") {
@@ -165,7 +165,7 @@ func TestRawLogRemovedWhenNothingWasTrimmed(t *testing.T) {
 		fmt.Fprintf(&b, "unique line %d\n", i)
 	}
 	in := b.String()
-	got, p := run(t, in, 0, Options{Filters: []filter.LineFilter{filter.NewDedup()}})
+	got, p := run(t, in, 0, Options{Filters: []filter.LineFilter{filter.NewGuard(), filter.NewDedup()}})
 
 	if got != in {
 		t.Errorf("incompressible output should come out unchanged\n got %q\nwant %q", got, in)

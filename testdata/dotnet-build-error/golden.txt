@@ -1,0 +1,18 @@
+  App.Data -> /home/dev/src/App.Data/bin/Debug/net8.0/App.Data.dll
+/home/dev/src/App.Api/Controllers/UserController.cs(31,13): warning CS0168: The variable 'ex' is declared but never used [/home/dev/src/App.Api/App.Api.csproj]
+/home/dev/src/App.Api/Services/OrderService.cs(58,9): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed [/home/dev/src/App.Api/App.Api.csproj]
+/home/dev/src/App.Api/Services/OrderService.cs(74,22): error CS1503: Argument 1: cannot convert from 'int' to 'string' [/home/dev/src/App.Api/App.Api.csproj]
+/home/dev/src/App.Api/Program.cs(19,1): error CS1002: ; expected [/home/dev/src/App.Api/App.Api.csproj]
+
+Build FAILED.
+
+/home/dev/src/App.Api/Controllers/UserController.cs(31,13): warning CS0168: The variable 'ex' is declared but never used [/home/dev/src/App.Api/App.Api.csproj]
+/home/dev/src/App.Api/Services/OrderService.cs(58,9): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed [/home/dev/src/App.Api/App.Api.csproj]
+/home/dev/src/App.Api/Services/OrderService.cs(74,22): error CS1503: Argument 1: cannot convert from 'int' to 'string' [/home/dev/src/App.Api/App.Api.csproj]
+/home/dev/src/App.Api/Program.cs(19,1): error CS1002: ; expected [/home/dev/src/App.Api/App.Api.csproj]
+    2 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:00:04.87
+[toktrim] restored 4 projects
+[toktrim] built 1 project

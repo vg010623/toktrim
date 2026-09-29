@@ -1,0 +1,15 @@
+[1m[32m   Compiling[0m app v0.1.0 (/home/dev/app)
+[?25l[2K⠋ Building [                    ] 0/42⠙ Building [==>                 ] 5/42⠹ Building [========>           ] 18/42⠸ Building [================>   ] 35/42✔ Building [====================] 42/42
+Downloading crates ...
+  Downloaded app-deps 0% (0.2MB / 12.0MB)
+  Downloaded app-deps 12% (1.2MB / 12.0MB)
+  Downloaded app-deps 27% (3.2MB / 12.0MB)
+  Downloaded app-deps 44% (5.2MB / 12.0MB)
+  Downloaded app-deps 61% (7.2MB / 12.0MB)
+  Downloaded app-deps 78% (9.2MB / 12.0MB)
+  Downloaded app-deps 93% (11.2MB / 12.0MB)
+  Downloaded app-deps 100% (12.2MB / 12.0MB)
+]8;;https://example.com/docs\see the docs]8;;\
+[1;31merror[E0308][0m: mismatched types
+  [1;34m-->[0m src/main.rs:7:20
+[1;31merror[0m: could not compile `app` (bin "app") due to 1 previous error

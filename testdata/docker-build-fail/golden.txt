@@ -1,0 +1,52 @@
+#0 building with "default" instance using docker driver
+#1 [internal] load build definition from Dockerfile
+#1 [toktrim] 1 line of layer/progress output elided
+#1 DONE 0.0s
+#2 [internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 1.3s
+#3 [internal] load .dockerignore
+#3 [toktrim] 1 line of layer/progress output elided
+#3 DONE 0.0s
+#4 [1/6] FROM docker.io/library/node:20-alpine@sha256:4bfd66e1e1f4d2e5bb7ee0d1e3c1a8f9c0b7d6a5e4f3c2b1a09876543210fedc
+#4 [toktrim] 6 lines of layer/progress output elided
+#4 DONE 4.2s
+#5 [internal] load build context
+#5 [toktrim] 1 line of layer/progress output elided
+#5 DONE 0.2s
+#6 [2/6] WORKDIR /app
+#6 DONE 0.1s
+#7 [3/6] COPY package.json package-lock.json ./
+#7 DONE 0.0s
+#8 [4/6] RUN npm ci
+#8 [toktrim] 7 lines of layer/progress output elided
+#8 DONE 18.9s
+#9 [5/6] COPY . .
+#9 DONE 0.1s
+#10 [6/6] RUN npm run build
+#10 0.412
+#10 0.412 > app@1.0.0 build
+#10 0.412 > tsc --noEmit false --outDir dist
+#10 0.412
+#10 6.884 src/server.ts(42,17): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+#10 6.884   Type 'undefined' is not assignable to type 'string'.
+#10 6.885 src/routes/user.ts(18,3): error TS2554: Expected 2 arguments, but got 1.
+#10 6.886 src/db/pool.ts(7,10): error TS2551: Property 'connectt' does not exist on type 'Pool'. Did you mean 'connect'?
+#10 7.102
+#10 7.103 Found 3 errors in 3 files.
+#10 7.103
+#10 ERROR: process "/bin/sh -c npm run build" did not complete successfully: exit code: 2
+------
+ > [6/6] RUN npm run build:
+6.885 src/routes/user.ts(18,3): error TS2554: Expected 2 arguments, but got 1.
+6.886 src/db/pool.ts(7,10): error TS2551: Property 'connectt' does not exist on type 'Pool'. Did you mean 'connect'?
+7.102
+7.103 Found 3 errors in 3 files.
+------
+Dockerfile:14
+--------------------
+  12 |     COPY . .
+  13 |
+  14 | >>> RUN npm run build
+  15 |
+--------------------
+ERROR: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 2

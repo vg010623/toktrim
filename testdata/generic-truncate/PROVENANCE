@@ -1,0 +1,4 @@
+Generated: 400 lines of plausible compiler chatter with two failures buried in
+the middle, to pin the generic head/tail fallback. The point of the fixture is
+the shape -- head kept, middle elided, middle failures rescued, tail kept --
+not the specific text.

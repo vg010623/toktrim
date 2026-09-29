@@ -25,8 +25,9 @@ import (
 
 // Options configures a Processor.
 type Options struct {
-	// Filters is the chain applied to each line, in order. A Guard is always
-	// installed ahead of it by New.
+	// Filters is the chain applied to each line, in order. Build it with
+	// filter.Chain, which guarantees a Guard sits ahead of every filter that
+	// drops lines.
 	Filters []filter.LineFilter
 	// PassthroughLines and PassthroughBytes set the size below which output is
 	// passed through unchanged. Zero selects the default.
@@ -39,6 +40,10 @@ type Options struct {
 	Label string
 	// NoFooter suppresses the "N lines elided" trailer. Used by tests.
 	NoFooter bool
+	// AlwaysFilter skips the passthrough check, so even small output goes
+	// through the chain. Used by the fixture tests, where the point is the
+	// filters rather than the passthrough rule.
+	AlwaysFilter bool
 }
 
 // Processor filters a stream of command output.
@@ -77,11 +82,7 @@ func New(out io.Writer, opts Options) *Processor {
 	if opts.PassthroughBytes <= 0 {
 		opts.PassthroughBytes = config.DefaultPassthroughBytes
 	}
-	chain := make([]filter.LineFilter, 0, len(opts.Filters)+1)
-	// The guard runs first so every later filter sees Protected already set.
-	chain = append(chain, filter.NewGuard())
-	chain = append(chain, opts.Filters...)
-	return &Processor{out: out, opts: opts, chain: chain}
+	return &Processor{out: out, opts: opts, chain: opts.Filters}
 }
 
 // Write implements io.Writer. It is safe to call with arbitrary chunk
@@ -91,6 +92,12 @@ func (p *Processor) Write(b []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 	n := len(b)
+
+	if !p.streaming && p.opts.AlwaysFilter {
+		if err := p.beginStreaming(); err != nil {
+			return 0, err
+		}
+	}
 
 	if !p.streaming {
 		p.held.Write(b)

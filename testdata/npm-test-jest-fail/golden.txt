@@ -1,0 +1,45 @@
+
+> toktrim-fixture@1.0.0 test
+> jest
+
+PASS src/other.test.js
+FAIL src/sum.test.js
+  ● sum › is wrong about big numbers
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 9999
+    Received: 1001
+
+      3 |   test('adds two numbers', () => { expect(sum(1, 2)).toBe(3); });
+      4 |   test('adds negatives', () => { expect(sum(-1, -2)).toBe(-3); });
+    > 5 |   test('is wrong about big numbers', () => { expect(sum(1000, 1)).toBe(9999); });
+        |                                                                   ^
+      6 | });
+      7 | describe('div', () => {
+      8 |   test('divides', () => { expect(div(6, 3)).toBe(2); });
+
+      at Object.toBe (src/sum.test.js:5:67)
+
+  ● div › throws on zero
+
+    expect(received).toThrow(expected)
+
+    Expected substring: "divide by zero"
+
+    Received function did not throw
+
+       7 | describe('div', () => {
+       8 |   test('divides', () => { expect(div(6, 3)).toBe(2); });
+    >  9 |   test('throws on zero', () => { expect(() => div(1, 0)).toThrow('divide by zero'); });
+         |                                                          ^
+      10 | });
+      11 |
+
+      at Object.toThrow (src/sum.test.js:9:58)
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       2 failed, 6 passed, 8 total
+Snapshots:   0 total
+Time:        0.269 s
+Ran all test suites.

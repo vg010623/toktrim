@@ -17,8 +17,11 @@ Usage:
 "exec" is accepted as an alias for "run".
 
 Environment:
-  TOKTRIM_STATS=1    report what was trimmed, on stderr
-  TOKTRIM_DISABLE=1  pass everything through unchanged
+  TOKTRIM_STATS=1        report what was trimmed, on stderr
+  TOKTRIM_DISABLE=1      pass everything through unchanged
+  TOKTRIM_RAW_LOG_DIR    where to write full-output logs
+
+Configuration: toktrim.toml in the project root or ~/.config/toktrim/.
 `
 
 func main() {
@@ -26,8 +29,6 @@ func main() {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
-
-	cfg := config.Default()
 
 	switch os.Args[1] {
 	case "run", "exec":
@@ -40,13 +41,27 @@ func main() {
 			fmt.Fprintf(os.Stderr, "toktrim: %s needs a command\n\n%s", os.Args[1], usage)
 			os.Exit(2)
 		}
-		os.Exit(runner.Run(args, cfg))
+		os.Exit(runner.Run(args, loadConfig()))
 	case "pipe":
-		os.Exit(runner.ProcessStdin(cfg))
+		os.Exit(runner.ProcessStdin(loadConfig()))
 	case "help", "-h", "--help":
 		fmt.Print(usage)
 	default:
 		fmt.Fprintf(os.Stderr, "toktrim: unknown subcommand %q\n\n%s", os.Args[1], usage)
 		os.Exit(2)
 	}
+}
+
+// loadConfig reads toktrim.toml if there is one. A broken config is reported but
+// never fatal: toktrim must not be the reason a command fails to run.
+func loadConfig() *config.Config {
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	cfg, err := config.Load(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "toktrim: ignoring config: %v\n", err)
+	}
+	return cfg
 }
