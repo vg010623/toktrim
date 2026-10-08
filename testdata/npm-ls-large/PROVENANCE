@@ -1,0 +1,9 @@
+Captured with `npm ls --all` (npm 11.19.1) in a temp project created with
+`npm init -y && npm i react-scripts@5 @mui/material ag-grid-react dayjs big.js`,
+as described in the v0.3 issue. 3145 lines, 157 KB. Local paths rewritten to
+/home/dev/project.
+
+This is the repro for the query-command bug: the whole point of `npm ls` output
+is to look a package up, and head/tail truncation elides the middle third where
+most of the tree lives. math-intrinsics, axobject-query, shebang-regex and
+terminal-link all appear only between lines 1048 and 2096.

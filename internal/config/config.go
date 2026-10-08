@@ -19,6 +19,8 @@ const (
 	DefaultContextAfter  = 3
 	// DefaultMinRun is the shortest run of identical lines worth collapsing.
 	DefaultMinRun = 3
+	// DefaultSimilarWindow is how far back a repeated line is still a repeat.
+	DefaultSimilarWindow = 50
 )
 
 // Config is the effective configuration for one toktrim invocation.
@@ -38,6 +40,8 @@ type Config struct {
 	ContextAfter  int
 	// MinRun is the shortest run of identical lines the dedup filter collapses.
 	MinRun int
+	// SimilarWindow is how far back the dedup filter looks for a repeat.
+	SimilarWindow int
 	// RawLogDir is where full-output logs are written. Empty means the system
 	// temp directory.
 	RawLogDir string
@@ -58,5 +62,6 @@ func Default() *Config {
 		ContextBefore:    DefaultContextBefore,
 		ContextAfter:     DefaultContextAfter,
 		MinRun:           DefaultMinRun,
+		SimilarWindow:    DefaultSimilarWindow,
 	}
 }

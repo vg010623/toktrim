@@ -68,7 +68,7 @@ func Run(r io.Reader, w io.Writer) int {
 		return 0
 	}
 
-	decision := Classify(command)
+	decision := Default().Classify(command)
 	if !decision.Wrap {
 		debugf("leaving alone: %s", decision.Reason)
 		return 0
