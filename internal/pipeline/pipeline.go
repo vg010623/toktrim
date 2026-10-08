@@ -1,11 +1,14 @@
 // Package pipeline drives command output through the filter chain.
 //
 // A Processor is an io.Writer, so the runner can copy the child's output into
-// it as it arrives. Two guarantees shape the design:
+// it as it arrives. Three guarantees shape the design:
 //
 //   - Small output is byte-for-byte identical to the input. Until the output
 //     grows past the passthrough thresholds the raw bytes are simply held, and
 //     if the command ends first they are written out untouched.
+//   - Filtering never makes the output bigger. While the output still fits in
+//     the decision window, both the raw and the filtered form are held, and
+//     whichever is smaller is what gets written.
 //   - Anything removed is recoverable. Once filtering begins the raw stream is
 //     also written to a temp file, and the filtered output ends with a pointer
 //     to it.
@@ -23,6 +26,15 @@ import (
 	"github.com/vg010623/toktrim/internal/filter"
 )
 
+// DefaultDecisionWindow is how much output is held while deciding whether
+// filtering actually helped.
+//
+// Past this, toktrim commits to the filtered form and streams it: a command
+// producing megabytes is not one where markers could plausibly outweigh what
+// was removed, and holding more would risk losing buffered output if toktrim
+// itself were killed.
+const DefaultDecisionWindow = 1 << 20 // 1 MiB
+
 // Options configures a Processor.
 type Options struct {
 	// Filters is the chain applied to each line, in order. Build it with
@@ -30,9 +42,12 @@ type Options struct {
 	// drops lines.
 	Filters []filter.LineFilter
 	// PassthroughLines and PassthroughBytes set the size below which output is
-	// passed through unchanged. Zero selects the default.
+	// emitted unchanged. Zero selects the default.
 	PassthroughLines int
 	PassthroughBytes int
+	// DecisionWindow bounds how much is held while comparing the filtered form
+	// against the raw one. Zero selects the default.
+	DecisionWindow int
 	// RawLogDir is where the full-output log is written. Empty selects the
 	// system temp directory.
 	RawLogDir string
@@ -41,8 +56,7 @@ type Options struct {
 	// NoFooter suppresses the "N lines elided" trailer. Used by tests.
 	NoFooter bool
 	// AlwaysFilter skips the passthrough check, so even small output goes
-	// through the chain. Used by the fixture tests, where the point is the
-	// filters rather than the passthrough rule.
+	// through the chain. Used by the fixture tests.
 	AlwaysFilter bool
 }
 
@@ -52,26 +66,36 @@ type Processor struct {
 	opts  Options
 	chain []filter.LineFilter
 
-	// Buffering phase: raw bytes held while the output might still be small
-	// enough to pass through untouched.
-	held      bytes.Buffer
-	heldLines int
-	streaming bool
+	// raw holds the bytes seen so far, while they are still held.
+	raw      bytes.Buffer
+	rawLines int
+	// filtered collects the chain's output while the decision is open.
+	filtered bytes.Buffer
+
+	// filtering becomes true once the passthrough thresholds are passed.
+	filtering bool
+	// holding becomes false once the decision window is passed and the
+	// filtered form has been committed to.
+	holding bool
 
 	// partial holds bytes after the last newline seen so far.
 	partial []byte
-
-	passthroughBytes int
+	// handled counts bytes of raw already written to the log and fed to the
+	// chain. One offset for both, so the log cannot miss the bytes that were
+	// buffered before filtering began -- which is exactly what it did when
+	// they were tracked separately.
+	handled int
 
 	rawLog     *os.File
 	rawLogPath string
 	rawLogErr  error
 
-	inLines  int
-	outLines int
-	inBytes  int
-	outBytes int
-	closed   bool
+	inLines    int
+	outLines   int
+	inBytes    int
+	outBytes   int
+	emittedRaw bool
+	closed     bool
 }
 
 // New returns a Processor writing filtered output to out.
@@ -82,7 +106,19 @@ func New(out io.Writer, opts Options) *Processor {
 	if opts.PassthroughBytes <= 0 {
 		opts.PassthroughBytes = config.DefaultPassthroughBytes
 	}
-	return &Processor{out: out, opts: opts, chain: opts.Filters}
+	if opts.DecisionWindow <= 0 {
+		opts.DecisionWindow = DefaultDecisionWindow
+	}
+	return &Processor{out: out, opts: opts, chain: opts.Filters, holding: true}
+}
+
+// dest is where finished lines go: a buffer while the decision is open, the
+// real output once it has been made.
+func (p *Processor) dest() io.Writer {
+	if p.holding {
+		return &p.filtered
+	}
+	return p.out
 }
 
 // Write implements io.Writer. It is safe to call with arbitrary chunk
@@ -93,22 +129,28 @@ func (p *Processor) Write(b []byte) (int, error) {
 	}
 	n := len(b)
 
-	if !p.streaming && p.opts.AlwaysFilter {
-		if err := p.beginStreaming(); err != nil {
-			return 0, err
-		}
-	}
+	if p.holding {
+		p.raw.Write(b)
+		p.rawLines += bytes.Count(b, []byte{'\n'})
 
-	if !p.streaming {
-		p.held.Write(b)
-		p.heldLines += bytes.Count(b, []byte{'\n'})
-		if p.heldLines <= p.opts.PassthroughLines && p.held.Len() <= p.opts.PassthroughBytes {
-			return n, nil
+		if !p.filtering {
+			underThresholds := p.rawLines <= p.opts.PassthroughLines &&
+				p.raw.Len() <= p.opts.PassthroughBytes
+			if underThresholds && !p.opts.AlwaysFilter {
+				return n, nil
+			}
+			p.filtering = true
+			p.openRawLog()
 		}
-		// Too big to pass through: start filtering, replaying what was held.
-		if err := p.beginStreaming(); err != nil {
-			return n, err
-		}
+		// Hand the chain and the log everything not yet handled. On the write
+		// that trips the thresholds this is the whole buffer, including the
+		// bytes that arrived while the output might still have passed through.
+		all := p.raw.Bytes()
+		fresh := all[p.handled:]
+		p.writeRawLog(fresh)
+		p.consume(fresh)
+		p.handled = len(all)
+		p.commitIfPastWindow()
 		return n, nil
 	}
 
@@ -117,15 +159,19 @@ func (p *Processor) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-// beginStreaming switches from holding raw bytes to filtering them.
-func (p *Processor) beginStreaming() error {
-	p.streaming = true
-	buffered := p.held.Bytes()
-	p.openRawLog()
-	p.writeRawLog(buffered)
-	p.consume(buffered)
-	p.held.Reset()
-	return nil
+// commitIfPastWindow gives up on the raw/filtered comparison once too much has
+// been held, writes out what the chain has produced so far, and streams from
+// then on.
+func (p *Processor) commitIfPastWindow() {
+	if !p.holding || p.raw.Len() <= p.opts.DecisionWindow {
+		return
+	}
+	p.holding = false
+	p.out.Write(p.filtered.Bytes())
+	p.filtered.Reset()
+	// The raw bytes can no longer be reconsidered; the log still has them.
+	p.raw.Reset()
+	p.handled = 0
 }
 
 // consume splits b into complete lines and feeds them through the chain.
@@ -162,27 +208,26 @@ func (p *Processor) push(i int, l filter.Line) {
 	p.chain[i].Process(l, func(next filter.Line) { p.push(i+1, next) })
 }
 
-// emit writes a finished line to the output.
+// emit writes a finished line to the current destination.
 func (p *Processor) emit(l filter.Line) {
 	p.outLines++
 	p.outBytes += len(l.Text) + 1
-	io.WriteString(p.out, l.Text)
-	io.WriteString(p.out, "\n")
+	w := p.dest()
+	io.WriteString(w, l.Text)
+	io.WriteString(w, "\n")
 }
 
-// Close finishes the stream: it flushes the chain, writes the passthrough bytes
-// if filtering never started, and appends the elision footer.
+// Close finishes the stream.
 func (p *Processor) Close() error {
 	if p.closed {
 		return nil
 	}
 	p.closed = true
 
-	if !p.streaming {
+	if !p.filtering {
 		// Small output: exactly the bytes we were given.
-		b := p.held.Bytes()
-		p.passthroughBytes = len(b)
-		_, err := p.out.Write(b)
+		p.emittedRaw = true
+		_, err := p.out.Write(p.raw.Bytes())
 		return err
 	}
 
@@ -197,8 +242,26 @@ func (p *Processor) Close() error {
 	}
 
 	p.finishRawLog()
-	p.writeFooter()
-	return nil
+
+	if !p.holding {
+		// Already committed and streamed; only the trailer is left.
+		p.writeFooter(p.out)
+		return nil
+	}
+
+	// The whole output fits in the window, so the comparison is exact: write
+	// the footer into the buffer and then pick the smaller form.
+	p.writeFooter(&p.filtered)
+	if p.filtered.Len() >= p.raw.Len() {
+		// Filtering did not pay for itself. Hand back the original bytes and
+		// keep no log: there is nothing to recover.
+		p.emittedRaw = true
+		p.discardRawLog()
+		_, err := p.out.Write(p.raw.Bytes())
+		return err
+	}
+	_, err := p.out.Write(p.filtered.Bytes())
+	return err
 }
 
 // flushFrom flushes chain[i], routing what it releases through the rest of the
@@ -222,33 +285,33 @@ func (p *Processor) changed() bool {
 
 // writeFooter appends the pointer back to the full output, when there is
 // something to point at.
-func (p *Processor) writeFooter() {
+func (p *Processor) writeFooter(w io.Writer) {
 	if p.opts.NoFooter || !p.changed() {
 		p.discardRawLog()
 		return
 	}
 	elided := p.inLines - p.outLines
-	var what string
-	switch {
-	case elided > 0:
+	what := "output rewritten"
+	if elided > 0 {
 		what = fmt.Sprintf("%d lines elided", elided)
-	default:
-		what = "output rewritten"
 	}
 	if p.rawLogPath == "" {
-		fmt.Fprintf(p.out, "[toktrim] %s (raw log unavailable: %v)\n", what, p.rawLogErr)
+		fmt.Fprintf(w, "[toktrim] %s (raw log unavailable: %v)\n", what, p.rawLogErr)
 		return
 	}
-	fmt.Fprintf(p.out, "[toktrim] %s — full output: %s\n", what, p.rawLogPath)
+	fmt.Fprintf(w, "[toktrim] %s — full output: %s\n", what, p.rawLogPath)
 }
 
 // Stats describes what the processor did.
 type Stats struct {
 	LinesIn, LinesOut int
 	BytesIn, BytesOut int
-	// Filtered is false when the output was small enough to pass through.
+	// Filtered is false when the output was emitted unchanged, either because
+	// it was small or because filtering did not shrink it.
 	Filtered bool
 	RawLog   string
+	// Filters names the filters that altered the stream.
+	Filters []string
 }
 
 // Stats reports what the processor did.
@@ -256,16 +319,22 @@ func (p *Processor) Stats() Stats {
 	s := Stats{
 		LinesIn: p.inLines, LinesOut: p.outLines,
 		BytesIn: p.inBytes, BytesOut: p.outBytes,
-		Filtered: p.streaming, RawLog: p.rawLogPath,
+		Filtered: p.filtering && !p.emittedRaw,
+		RawLog:   p.rawLogPath,
 	}
-	if !p.streaming {
-		// Passthrough: input and output are the same bytes.
-		n := p.passthroughBytes
-		if n == 0 {
-			n = p.held.Len()
-		}
+	if p.emittedRaw {
+		n := p.raw.Len()
 		s.BytesIn, s.BytesOut = n, n
-		s.LinesIn, s.LinesOut = p.heldLines, p.heldLines
+		s.LinesOut = s.LinesIn
+		if !p.filtering {
+			s.LinesIn, s.LinesOut = p.rawLines, p.rawLines
+		}
+		return s
+	}
+	for _, f := range p.chain {
+		if f.Changed() {
+			s.Filters = append(s.Filters, f.Name())
+		}
 	}
 	return s
 }
@@ -278,8 +347,7 @@ func (p *Processor) openRawLog() {
 	if dir == "" {
 		dir = os.TempDir()
 	}
-	label := sanitizeLabel(p.opts.Label)
-	f, err := os.CreateTemp(dir, "toktrim-"+label+"-*.log")
+	f, err := os.CreateTemp(dir, "toktrim-"+sanitizeLabel(p.opts.Label)+"-*.log")
 	if err != nil {
 		p.rawLogErr = err
 		return

@@ -1,0 +1,3 @@
+Generated: eslint stylish-formatter output where every line is an error, across
+12 files. This is the shape that made v0.2.0's output *larger* than its input:
+nothing can be dropped, so the only thing the filters contribute is markers.
