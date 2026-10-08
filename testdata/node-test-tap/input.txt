@@ -1,0 +1,120 @@
+> backend@1.0.0 test
+> node --test
+
+TAP version 13
+ok 1 - handles request variant 1
+  ---
+  duration_ms: 0.400000
+  ...
+ok 2 - handles request variant 2
+  ---
+  duration_ms: 0.800000
+  ...
+ok 3 - handles request variant 3
+  ---
+  duration_ms: 1.200000
+  ...
+ok 4 - handles request variant 4
+  ---
+  duration_ms: 1.600000
+  ...
+ok 5 - handles request variant 5
+  ---
+  duration_ms: 2.000000
+  ...
+ok 6 - handles request variant 6
+  ---
+  duration_ms: 2.400000
+  ...
+ok 7 - handles request variant 7
+  ---
+  duration_ms: 2.800000
+  ...
+ok 8 - handles request variant 8
+  ---
+  duration_ms: 3.200000
+  ...
+ok 9 - handles request variant 9
+  ---
+  duration_ms: 3.600000
+  ...
+ok 10 - handles request variant 10
+  ---
+  duration_ms: 4.000000
+  ...
+ok 11 - handles request variant 11
+  ---
+  duration_ms: 4.400000
+  ...
+ok 12 - handles request variant 12
+  ---
+  duration_ms: 4.800000
+  ...
+ok 13 - handles request variant 13
+  ---
+  duration_ms: 5.200000
+  ...
+ok 14 - handles request variant 14
+  ---
+  duration_ms: 5.600000
+  ...
+ok 15 - handles request variant 15
+  ---
+  duration_ms: 6.000000
+  ...
+ok 16 - handles request variant 16
+  ---
+  duration_ms: 6.400000
+  ...
+ok 17 - handles request variant 17
+  ---
+  duration_ms: 6.800000
+  ...
+ok 18 - handles request variant 18
+  ---
+  duration_ms: 7.200000
+  ...
+ok 19 - handles request variant 19
+  ---
+  duration_ms: 7.600000
+  ...
+ok 20 - handles request variant 20
+  ---
+  duration_ms: 8.000000
+  ...
+ok 21 - handles request variant 21
+  ---
+  duration_ms: 8.400000
+  ...
+ok 22 - handles request variant 22
+  ---
+  duration_ms: 8.800000
+  ...
+ok 23 - handles request variant 23
+  ---
+  duration_ms: 9.200000
+  ...
+ok 24 - handles request variant 24
+  ---
+  duration_ms: 9.600000
+  ...
+not ok 25 - returns correct totals
+  ---
+  duration_ms: 1.882000
+  location: 'test/totals.test.js:18:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+    + { rows: 4, total: 118 }
+    - { rows: 4, total: 120 }
+  code: 'ERR_ASSERTION'
+  stack: |-
+    TestContext.<anonymous> (test/totals.test.js:19:3)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+  ...
+1..25
+# tests 25
+# pass 24
+# fail 1

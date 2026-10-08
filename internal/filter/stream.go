@@ -15,10 +15,13 @@ import "strings"
 //
 // Text never contains the terminating newline. Protected marks a line that
 // carries failure information (or sits next to one); no filter may drop or
-// rewrite a protected line.
+// rewrite a protected line. InFailureBlock additionally marks a line that is
+// part of a failure's detail -- an assertion diff, a traceback -- where even
+// collapsing near-identical lines would misrepresent what the command printed.
 type Line struct {
-	Text      string
-	Protected bool
+	Text           string
+	Protected      bool
+	InFailureBlock bool
 }
 
 // Emit receives the lines a filter produces.
@@ -48,6 +51,20 @@ func (t *tracker) Changed() bool { return t.changed }
 
 // blank reports whether a line has no visible content.
 func blank(s string) bool { return strings.TrimSpace(s) == "" }
+
+// indentOf returns the number of leading whitespace characters, counting a tab
+// as one. Blocks are delimited by indentation, so this only has to be
+// consistent, not match any particular terminal's rendering.
+func indentOf(s string) int {
+	n := 0
+	for _, r := range s {
+		if r != ' ' && r != '\t' {
+			break
+		}
+		n++
+	}
+	return n
+}
 
 // plural returns word, pluralised when n is not 1.
 func plural(n int, word string) string {

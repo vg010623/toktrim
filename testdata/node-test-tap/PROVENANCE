@@ -1,0 +1,4 @@
+Generated: `node --test` TAP output (TAP version 13) with 24 passing tests and
+one failing assertion carrying a YAML diagnostic block, a strict-deep-equal diff
+and a stack. v0.2.0 recognised no TAP marker, so this fell through to head/tail
+truncation.

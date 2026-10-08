@@ -127,7 +127,7 @@ func TestDedupLeavesProtectedRunsAlone(t *testing.T) {
 func TestDedupCollapsesUnprotectedRuns(t *testing.T) {
 	d := NewDedup()
 	got := texts(collect(d, []string{"x", "noise", "noise", "noise", "noise", "y"}))
-	want := []string{"x", "[Repeated 4 times: noise]", "y"}
+	want := []string{"x", "noise", "[toktrim] \u00d74 similar lines collapsed", "y"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -136,9 +136,9 @@ func TestDedupCollapsesUnprotectedRuns(t *testing.T) {
 	}
 }
 
-func TestDedupLeavesShortRunsAndBlanksAlone(t *testing.T) {
+func TestDedupLeavesShortRunsAlone(t *testing.T) {
 	d := NewDedup()
-	in := []string{"a", "a", "", "", "", "", "b"}
+	in := []string{"a", "a", "b"}
 	got := texts(collect(d, in))
 	if strings.Join(got, "|") != strings.Join(in, "|") {
 		t.Errorf("got %v, want %v", got, in)
@@ -146,4 +146,67 @@ func TestDedupLeavesShortRunsAndBlanksAlone(t *testing.T) {
 	if d.Changed() {
 		t.Error("Dedup should not report a change when it collapsed nothing")
 	}
+}
+
+func TestDedupCollapsesBlankRuns(t *testing.T) {
+	// Blanks are separators. Once interleaved content has been dropped they
+	// pile up, so a run of them collapses to one.
+	d := NewDedup()
+	got := texts(collect(d, []string{"a", "", "", "", "", "b"}))
+	want := []string{"a", "", "b"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestDedupNormalizesOnlyLogNoise(t *testing.T) {
+	// Log-shaped lines whose numbers are measurements collapse by shape.
+	noise := []string{
+		`info: [db] SELECT * FROM t WHERE id = 1 {"ms":3}`,
+		`info: [db] SELECT * FROM t WHERE id = 2 {"ms":41}`,
+		`info: [db] SELECT * FROM t WHERE id = 3 {"ms":7}`,
+		`info: [db] SELECT * FROM t WHERE id = 4 {"ms":12}`,
+	}
+	got := texts(collect(NewDedup(), noise))
+	if len(got) != 2 || got[0] != noise[0] || !strings.Contains(got[1], "×4 similar lines") {
+		t.Errorf("log noise should collapse by shape, got %v", got)
+	}
+
+	// Lines where the number IS the content must survive, even though they
+	// differ only in digits. This is the case that makes blanket
+	// normalisation unsafe.
+	for _, in := range [][]string{
+		{"unique line 0", "unique line 1", "unique line 2", "unique line 3"},
+		{"[  1/400] CC build/obj/module_001.o", "[  2/400] CC build/obj/module_002.o",
+			"[  3/400] CC build/obj/module_003.o", "[  4/400] CC build/obj/module_004.o"},
+		{"test/a_1.js:10:3", "test/a_2.js:11:3", "test/a_3.js:12:3", "test/a_4.js:13:3"},
+	} {
+		got := texts(collect(NewDedup(), in))
+		if strings.Join(got, "|") != strings.Join(in, "|") {
+			t.Errorf("identifiers must not be collapsed\n got %v\nwant %v", got, in)
+		}
+	}
+}
+
+func TestSimilarityKey(t *testing.T) {
+	same := func(a, b string) {
+		t.Helper()
+		if SimilarityKey(a) != SimilarityKey(b) {
+			t.Errorf("%q and %q should share a key (%q vs %q)", a, b, SimilarityKey(a), SimilarityKey(b))
+		}
+	}
+	differ := func(a, b string) {
+		t.Helper()
+		if SimilarityKey(a) == SimilarityKey(b) {
+			t.Errorf("%q and %q should not share a key (both %q)", a, b, SimilarityKey(a))
+		}
+	}
+	same(`took 3ms`, `took 418ms`)
+	same(`id 550e8400-e29b-41d4-a716-446655440000 ok`, `id 6ba7b810-9dad-11d1-80b4-00c04fd430c8 ok`)
+	same(`layer sha256:4bfd66e1e1f4`, `layer sha256:aa1b2c3d4e5f`)
+	same(`loaded "src/a.js"`, `loaded "src/bbbb.js"`)
+	same(`2026-01-02T03:04:05Z done`, `2026-09-30T11:22:33Z done`)
+	same(`addr 0xdeadbeef`, `addr 0x1234`)
+	differ(`SELECT * FROM users`, `SELECT * FROM orders`)
+	differ(`compiling parser`, `compiling lexer`)
 }

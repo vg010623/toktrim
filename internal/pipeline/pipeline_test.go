@@ -72,7 +72,8 @@ func TestLargeOutputIsFilteredAndLogged(t *testing.T) {
 	if strings.Count(got, "\n") >= 100 {
 		t.Errorf("output was not compressed: %d lines", strings.Count(got, "\n"))
 	}
-	if !strings.Contains(got, "[Repeated 100 times: progress...]") {
+	// The run collapses to its first line kept verbatim, plus a marker.
+	if !strings.Contains(got, "progress...\n[toktrim] \u00d7100 similar lines collapsed") {
 		t.Errorf("expected a dedup summary, got:\n%s", got)
 	}
 

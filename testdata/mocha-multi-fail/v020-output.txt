@@ -1,0 +1,137 @@
+> backend@1.0.0 test
+> mocha --recursive test/
+
+  Suite1 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 1 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 1 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 1 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 1 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 1 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 1 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 1 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 1 (8ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":9}
+    ✔ should handle case 9 for suite 1 (9ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":10}
+    ✔ should handle case 10 for suite 1 (10ms)
+  Suite2 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 2 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 2 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+[toktrim] ... 833 lines elided; failures from the middle follow ...
+    ✔ should handle case 10 for suite 40 (10ms)
+
+  400 passing (12s)
+  6 failing
+
+  1) Ctrl1
+       should return totals:
+
+      AssertionError: expected { Object (rows, total) } to deeply equal { Object (rows, total) }
+      + expected - actual
+
+       {
+      +  "total": 120
+       }
+
+      at Context.<anonymous> (test/ctrl1.test.js:10:14)
+      at process.processImmediate (node:internal/timers:478:21)
+
+  2) Ctrl2
+       should return totals:
+
+      AssertionError: expected { Object (rows, total) } to deeply equal { Object (rows, total) }
+      + expected - actual
+
+       {
+      +  "total": 120
+       }
+
+      at Context.<anonymous> (test/ctrl2.test.js:20:14)
+      at process.processImmediate (node:internal/timers:478:21)
+
+  3) Ctrl3
+       should return totals:
+
+      AssertionError: expected { Object (rows, total) } to deeply equal { Object (rows, total) }
+      + expected - actual
+
+       {
+      +  "total": 120
+       }
+
+      at Context.<anonymous> (test/ctrl3.test.js:30:14)
+      at process.processImmediate (node:internal/timers:478:21)
+
+[toktrim] ... resuming at the last 60 lines ...
+  4) Ctrl4
+       should return totals:
+
+      AssertionError: expected { Object (rows, total) } to deeply equal { Object (rows, total) }
+      + expected - actual
+
+       {
+         "field_4_1": 1
+         "field_4_2": 2
+         "field_4_3": 3
+         "field_4_4": 4
+         "field_4_5": 5
+         "field_4_6": 6
+      -  "total": 118
+      +  "total": 120
+       }
+
+      at Context.<anonymous> (test/ctrl4.test.js:40:14)
+      at process.processImmediate (node:internal/timers:478:21)
+
+  5) Ctrl5
+       should return totals:
+
+      AssertionError: expected { Object (rows, total) } to deeply equal { Object (rows, total) }
+      + expected - actual
+
+       {
+         "field_5_1": 1
+         "field_5_2": 2
+         "field_5_3": 3
+         "field_5_4": 4
+         "field_5_5": 5
+         "field_5_6": 6
+      -  "total": 118
+      +  "total": 120
+       }
+
+      at Context.<anonymous> (test/ctrl5.test.js:50:14)
+      at process.processImmediate (node:internal/timers:478:21)
+
+  6) Ctrl6
+       should return totals:
+
+      AssertionError: expected { Object (rows, total) } to deeply equal { Object (rows, total) }
+      + expected - actual
+
+       {
+         "field_6_1": 1
+         "field_6_2": 2
+         "field_6_3": 3
+         "field_6_4": 4
+         "field_6_5": 5
+         "field_6_6": 6
+      -  "total": 118
+      +  "total": 120
+       }
+
+      at Context.<anonymous> (test/ctrl6.test.js:60:14)
+      at process.processImmediate (node:internal/timers:478:21)
+
+[toktrim] 831 lines elided — full output: /var/folders/g7/1wnhgqcs4lsdq557cxr1j6b80000gn/T/toktrim-bash-2953040742.log

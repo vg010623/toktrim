@@ -1,0 +1,8 @@
+Generated: interleaved application logs of the kind a backend prints during a
+test run or a dev boot -- db and http log lines that differ only in a duration
+or byte count, a run of Sass deprecation warnings that differ only in the file
+named, and a real connection error with a stack at the end.
+
+Pins the normalised dedup rules: log-shaped lines collapse by shape, the
+deprecation run collapses, and the Error plus its two stack frames survive
+untouched.
