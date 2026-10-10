@@ -186,11 +186,20 @@ func TestNormalizeRunner(t *testing.T) {
 }
 
 // hookOutput runs the hook over a payload and returns its stdout.
+//
+// rtk presence is pinned rather than looked up, so these tests give the same
+// answer on a developer machine with rtk installed and on a CI runner without
+// it. That difference is exactly what broke the first CI run for v0.3.
 func hookOutput(t *testing.T, payload string) string {
 	t.Helper()
+	return hookOutputWithRTK(t, payload, true)
+}
+
+func hookOutputWithRTK(t *testing.T, payload string, rtk bool) string {
+	t.Helper()
 	var out strings.Builder
-	if code := Run(strings.NewReader(payload), &out); code != 0 {
-		t.Errorf("Run returned %d; the hook must never block a command", code)
+	if code := RunWith(&Classifier{RTKAvailable: rtk}, strings.NewReader(payload), &out); code != 0 {
+		t.Errorf("RunWith returned %d; the hook must never block a command", code)
 	}
 	return out.String()
 }
@@ -224,10 +233,26 @@ func updatedCommand(t *testing.T, reply string) string {
 	return cmd
 }
 
-// Acceptance test 8.
+// Acceptance test 8, with rtk installed: git status is rtk's territory.
+//
+// Note that acceptance test 8 and v0.3 item 5 pull in opposite directions. The
+// original test says `git status` must print nothing because rtk handles it;
+// item 5 says that when rtk is *not* installed toktrim should handle it, since
+// otherwise nothing would. Both are asserted here, against a pinned rtk state,
+// so the answer never depends on what happens to be installed.
 func TestAcceptance_GitStatusPrintsNothing(t *testing.T) {
-	if got := hookOutput(t, `{"tool_input":{"command":"git status"}}`); got != "" {
-		t.Errorf("git status should print nothing (rtk's territory), got:\n%s", got)
+	if got := hookOutputWithRTK(t, `{"tool_input":{"command":"git status"}}`, true); got != "" {
+		t.Errorf("with rtk installed, git status should print nothing, got:\n%s", got)
+	}
+}
+
+func TestGitStatusIsWrappedWhenRTKIsAbsent(t *testing.T) {
+	got := hookOutputWithRTK(t, `{"tool_input":{"command":"git status"}}`, false)
+	if got == "" {
+		t.Fatal("without rtk, git status should be wrapped so that something filters it")
+	}
+	if want := `toktrim run -- bash -c 'git status'`; updatedCommand(t, got) != want {
+		t.Errorf("wrapped command = %q, want %q", updatedCommand(t, got), want)
 	}
 }
 

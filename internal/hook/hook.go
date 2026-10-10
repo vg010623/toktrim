@@ -31,12 +31,17 @@ type hookSpecificOutput struct {
 	UpdatedInput  json.RawMessage `json:"updatedInput"`
 }
 
-// Run reads a PreToolUse payload from r and writes the hook's reply to w.
+// Run reads a PreToolUse payload from r and writes the hook's reply to w,
+// using the process-wide classifier.
+func Run(r io.Reader, w io.Writer) int { return RunWith(Default(), r, w) }
+
+// RunWith is Run with an explicit classifier, so a test can pin whether rtk is
+// considered present instead of depending on the machine it runs on.
 //
 // It always returns 0. A hook that fails must not stop a command from running,
 // so every error path here is silent and lets the original command through
 // unchanged. Set TOKTRIM_HOOK_DEBUG=1 to see why nothing happened.
-func Run(r io.Reader, w io.Writer) int {
+func RunWith(c *Classifier, r io.Reader, w io.Writer) int {
 	raw, err := io.ReadAll(r)
 	if err != nil {
 		debugf("cannot read stdin: %v", err)
@@ -68,7 +73,7 @@ func Run(r io.Reader, w io.Writer) int {
 		return 0
 	}
 
-	decision := Default().Classify(command)
+	decision := c.Classify(command)
 	if !decision.Wrap {
 		debugf("leaving alone: %s", decision.Reason)
 		return 0

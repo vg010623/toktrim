@@ -257,6 +257,11 @@ to the model, so unconditional telemetry would cost the tokens it claims to save
 
 ## Known limitations
 
+- **What the hook skips depends on whether rtk is installed.** With rtk on
+  `PATH`, `git status` and `jest` are left to it; without rtk, toktrim handles
+  them, because otherwise nothing would. The same command can therefore be
+  wrapped on one machine and skipped on another. `TOKTRIM_HOOK_DEBUG=1` says
+  which rule applied.
 - **Two hooks rewriting one command race.** Claude Code runs `PreToolUse` hooks
   in parallel and, when more than one returns `updatedInput` for the same tool
   call, the last to finish wins. This is exactly why toktrim skips everything
