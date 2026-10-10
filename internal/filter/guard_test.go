@@ -210,3 +210,137 @@ func TestSimilarityKey(t *testing.T) {
 	differ(`SELECT * FROM users`, `SELECT * FROM orders`)
 	differ(`compiling parser`, `compiling lexer`)
 }
+
+func TestGuardKeepsWholeFailureBlock(t *testing.T) {
+	// A mocha-shaped failure: the diff body sits at the same indentation as the
+	// AssertionError above it, which is what defeats an indentation-only rule.
+	in := []string{
+		"  Suite1 Controller",
+		"    ✔ passes one",
+		"    ✔ passes two",
+		"    ✔ passes three",
+		"    ✔ passes four",
+		"  1) Ctrl1",
+		"       should return totals:",
+		"",
+		"      AssertionError: expected { Object (rows, total) } to deeply equal { Object (rows, total) }",
+		"      + expected - actual",
+		"",
+		"       {",
+		`         "field_1": 1`,
+		`         "field_2": 2`,
+		`      -  "total": 118`,
+		`      +  "total": 120`,
+		"       }",
+		"",
+		"      at Context.<anonymous> (test/ctrl1.test.js:10:14)",
+		"  2) Ctrl2",
+		"      AssertionError: nope",
+		"  96 passing",
+	}
+	got := collect(NewGuard(), in)
+
+	byText := map[string]Line{}
+	for _, l := range got {
+		byText[l.Text] = l
+	}
+	// Every line of the diff must be protected, not just the ones that happen
+	// to contain a failure word or sit near a stack frame.
+	for _, want := range []string{
+		`      -  "total": 118`,
+		`      +  "total": 120`,
+		`         "field_1": 1`,
+		`         "field_2": 2`,
+		"       {",
+		"       }",
+		"      + expected - actual",
+		"       should return totals:",
+	} {
+		l, ok := byText[want]
+		if !ok {
+			t.Errorf("line dropped by the guard: %q", want)
+			continue
+		}
+		if !l.Protected {
+			t.Errorf("line not protected: %q", want)
+		}
+		if !l.InFailureBlock {
+			t.Errorf("line not marked as failure detail: %q", want)
+		}
+	}
+
+	// The summary closes the block rather than being swallowed by it.
+	if l := byText["  96 passing"]; l.InFailureBlock {
+		t.Error("the summary line should not be inside a failure block")
+	}
+	// The three lines immediately above the failure are context and are
+	// protected; anything further back is not.
+	if l := byText["    ✔ passes four"]; !l.Protected {
+		t.Error("the line directly above the failure is context and should be protected")
+	}
+	if l := byText["    ✔ passes one"]; l.Protected {
+		t.Error("a passing test four lines above the failure should not be protected")
+	}
+}
+
+func TestGuardCapsAHugeBlockWithAMarker(t *testing.T) {
+	g := NewGuard()
+	g.MaxBlockLines = 10
+
+	in := []string{"  1) Ctrl1"}
+	for i := 0; i < 50; i++ {
+		in = append(in, "      detail line that belongs to the failure")
+	}
+	in = append(in, "  96 passing")
+
+	got := texts(collect(g, in))
+	joined := strings.Join(got, "\n")
+
+	// The cut must be announced, at the point where the lines stop.
+	if !strings.Contains(joined, "[toktrim] 41 lines elided from this failure") {
+		t.Errorf("a capped block must report what it cut, got:\n%s", joined)
+	}
+	// The marker sits immediately before the line that closed the block, which
+	// is where the missing lines were.
+	for i, l := range got {
+		if strings.HasPrefix(l, "[toktrim]") {
+			if i+1 >= len(got) || got[i+1] != "  96 passing" {
+				t.Errorf("marker is not at the point of the cut:\n%s", joined)
+			}
+			break
+		}
+	}
+	if !g.Changed() {
+		t.Error("a capped block is a change and should be reported as one")
+	}
+}
+
+func TestGuardBlockEndsAtADedent(t *testing.T) {
+	// A compiler diagnostic with indented detail, followed by unrelated output
+	// at the original indentation. The block must not swallow the rest.
+	in := []string{
+		"src/a.c:10:1: error: bad thing",
+		"   10 | int x = ;",
+		"      |         ^",
+		"[181/400] CC build/obj/module_181.o",
+		"[182/400] CC build/obj/module_182.o",
+		"[183/400] CC build/obj/module_183.o",
+		"[184/400] CC build/obj/module_184.o",
+		"[185/400] CC build/obj/module_185.o",
+		"[186/400] CC build/obj/module_186.o",
+		"[187/400] CC build/obj/module_187.o",
+	}
+	got := collect(NewGuard(), in)
+	if len(got) != len(in) {
+		t.Fatalf("guard dropped lines: %d in, %d out", len(in), len(got))
+	}
+	// The last few build lines are well past the failure and its context, so
+	// they must be free for later filters to compress.
+	last := got[len(got)-1]
+	if last.InFailureBlock {
+		t.Errorf("the block swallowed unrelated output: %q", last.Text)
+	}
+	if last.Protected {
+		t.Errorf("a build line seven lines past the error should not be protected: %q", last.Text)
+	}
+}
