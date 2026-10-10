@@ -13,6 +13,14 @@
 # TOKTRIM_DISABLE=1 in the environment.
 enabled = true
 
+# Leave a command alone when rtk would rewrite it. Off by default: toktrim is a
+# standalone tool and should not behave differently depending on what else is
+# installed. Turn it on only if you run rtk's hook *and* toktrim's hook at the
+# same time, since otherwise the two race over the same command. When on,
+# toktrim asks rtk's own hook rather than consulting a hardcoded list, so it
+# stays correct as rtk's coverage grows. Costs about 10 ms per command.
+defer_to_rtk = false
+
 # Output at or below BOTH of these limits is emitted byte-for-byte unchanged.
 passthrough_lines = 40
 passthrough_bytes = 2048

@@ -62,16 +62,9 @@ Compression is highest where the output is noise and lowest where it matters.
 toktrim's hook leaves a command alone when:
 
 - it starts with `rtk` or `toktrim`;
-- **rtk already covers it *and rtk is installed***: `git status`/`log`/`diff`/
-  `show`, `cargo`, `go test`, `pytest`, `jest`, `vitest`, `tsc`, `eslint`, `ls`,
-  `grep`, `find`. toktrim looks `rtk` up on `PATH` once per process; if it is
-  not there, toktrim handles these too, since otherwise nothing would.
-  `go build` and `git commit` are *not* on rtk's list, so toktrim always handles
-  those. A binary runner is normalised first, so `npx jest`, `bunx vitest`,
-  `pnpm exec jest` and `yarn jest` are treated exactly like bare `jest` — in
-  v0.2.0 the `npx` spelling was wrapped while the bare one was skipped;
 - it is long-running or interactive: a `dev`, `start`, `watch`, `serve` script,
-  `--watch`, `-it`, `tail -f`, or `docker run` without `--rm`;
+  `--watch`, `-it`, `tail -f`, or `docker run` without `--rm`. Wrapping these
+  would either hang behind toktrim or break the interactive session;
 - it already sends all output to a file (`> log 2>&1`, `&> log`);
 - **it is a query, whose output is the answer**: `npm`/`pnpm`/`yarn`
   `ls`/`outdated`/`view`/`why`/`info`/`explain`/`search`/`audit`, `gh`, `cat`,
@@ -81,8 +74,42 @@ toktrim's hook leaves a command alone when:
   `tail`, `grep`, `wc`, `sort`, `uniq`, `cut` or `jq` — whoever wrote that
   pipeline already decided how much they wanted.
 
-A chain like `npm ci && npm run build` *is* handled, because rtk does not
-rewrite chains — unless every segment is itself an rtk command.
+Everything else it handles. `TOKTRIM_HOOK_DEBUG=1` says which rule applied.
+
+A binary runner is normalised first, so `npx jest`, `bunx vitest`,
+`pnpm exec jest` and `yarn jest` are all treated like bare `jest`. `yarn build`
+and `npm run build` are not unwrapped, because those name a package script
+rather than a binary.
+
+## Running alongside rtk
+
+toktrim and **rtk** (Rust Token Killer) both install as a
+`PreToolUse` hook on `Bash`, and both answer with `updatedInput`. Claude Code
+runs hooks in parallel and, when more than one rewrites the same tool call,
+**the last to finish wins** — so with both hooks enabled, which tool filters a
+given command is non-deterministic.
+
+Pick one of these:
+
+**Use toktrim on its own** (the default). Replace rtk's hook with toktrim's in
+`settings.json`. Nothing else to configure; toktrim's filters already cover
+jest, vitest, mocha, node:test, pytest, go test and cargo.
+
+**Keep rtk in charge of what it handles.** Leave rtk's hook in place, add
+toktrim's, and switch deference on:
+
+```toml
+# toktrim.toml
+defer_to_rtk = true
+```
+
+or `TOKTRIM_DEFER_TO_RTK=1`. toktrim then asks rtk's own hook whether it claims
+a command and stands down if it does. That is checked against the installed rtk
+rather than a hardcoded list, because rtk's coverage grows between releases —
+rtk 0.44.2 claims about seventy commands, including `npm run`, `docker`,
+`dotnet`, `go` and `make`. Asking costs about 10 ms per Bash call, and if rtk
+is missing or fails to answer, toktrim handles the command rather than leaving
+it unfiltered.
 
 ## Install
 
@@ -184,6 +211,7 @@ See [`toktrim.example.toml`](./toktrim.example.toml) for the annotated version.
 
 ```toml
 enabled = true            # false, or TOKTRIM_DISABLE=1, for a pass-through
+defer_to_rtk = false      # true: stand down on commands rtk claims
 passthrough_lines = 40    # output at or below BOTH limits is untouched
 passthrough_bytes = 2048
 context_before = 3        # lines kept around a failure
@@ -222,6 +250,7 @@ config never stops a command from running.
 | `TOKTRIM_HOOK_DEBUG=1` | explain why the hook stayed silent |
 | `TOKTRIM_NO_LEDGER=1` | do not record runs in the savings ledger |
 | `TOKTRIM_STATE_DIR` | where the ledger lives |
+| `TOKTRIM_DEFER_TO_RTK=1` | leave commands rtk would rewrite to rtk |
 
 Stats are off by default on purpose: Claude Code forwards the Bash tool's stderr
 to the model, so unconditional telemetry would cost the tokens it claims to save.

@@ -2,27 +2,25 @@
 package hook
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/vg010623/toktrim/internal/filter"
 )
 
-// rtkAllowlist is the set of commands rtk compresses.
-//
-// toktrim defers to rtk for these, but only when rtk is actually installed.
-// Skipping them unconditionally meant that on a machine without rtk nothing
-// filtered them at all.
-var rtkAllowlist = map[string]bool{
-	"cargo": true, "pytest": true, "jest": true, "vitest": true,
-	"tsc": true, "eslint": true, "ls": true, "grep": true, "find": true,
-}
-
-// rtkGitSubcommands are the git subcommands rtk covers. Others (commit, push,
-// rebase) are left to toktrim.
-var rtkGitSubcommands = map[string]bool{
-	"status": true, "log": true, "diff": true, "show": true,
+// knownTools are tools whose output toktrim recognises. The list exists only
+// so that `yarn <tool>` can be told apart from `yarn <script>`.
+var knownTools = map[string]bool{
+	"jest": true, "vitest": true, "mocha": true, "ava": true, "tap": true,
+	"pytest": true, "cargo": true, "tsc": true, "eslint": true, "biome": true,
+	"prettier": true, "nyc": true, "c8": true, "tsx": true, "esbuild": true,
+	"vite": true, "webpack": true, "rollup": true,
 }
 
 // longRunning marks commands that stream for minutes or expect a terminal.
@@ -55,10 +53,18 @@ type Decision struct {
 }
 
 // Classifier decides whether toktrim should wrap a command.
+//
+// toktrim is a standalone tool. Its own filters already cover jest, vitest,
+// mocha, node:test, pytest, go test and cargo, so nothing here needs another
+// tool to be installed. Deference to rtk is opt-in, for people who run both
+// and want rtk to keep the commands it is better at.
 type Classifier struct {
-	// RTKAvailable reports whether rtk is on PATH. When it is not, toktrim
-	// handles the commands it would otherwise leave to rtk.
-	RTKAvailable bool
+	// DeferToRTK makes toktrim leave a command alone when rtk would handle it.
+	// Off by default: a developer who installs toktrim should get a tool that
+	// works, not one whose behaviour depends on what else is on the machine.
+	DeferToRTK bool
+	// askRTK reports whether rtk claims a command. Replaced in tests.
+	askRTK func(command string) bool
 }
 
 var (
@@ -66,23 +72,76 @@ var (
 	defaultClassifier *Classifier
 )
 
-// rtkOnPath reports whether rtk is installed, looked up once per process.
-func rtkOnPath() bool {
-	_, err := exec.LookPath("rtk")
-	return err == nil
-}
-
 // Default returns the classifier used by the hook, created once.
 func Default() *Classifier {
 	defaultOnce.Do(func() {
-		defaultClassifier = &Classifier{RTKAvailable: rtkOnPath()}
+		defaultClassifier = &Classifier{
+			DeferToRTK: deferToRTKFromEnv(),
+			askRTK:     rtkClaims,
+		}
 	})
 	return defaultClassifier
 }
 
-// Classify decides whether toktrim should wrap a Bash command, using the
-// process-wide classifier.
-func Classify(command string) Decision { return Default().Classify(command) }
+// deferToRTKFromEnv reads the opt-in switch.
+func deferToRTKFromEnv() bool {
+	switch os.Getenv("TOKTRIM_DEFER_TO_RTK") {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// rtkClaims asks rtk's own hook whether it would rewrite this command.
+//
+// Asking rtk beats keeping a copy of its allowlist here for two reasons. It is
+// accurate for whatever rtk version is installed -- rtk 0.44.2 covers about
+// seventy commands, far more than the handful toktrim's list was built from --
+// and it answers the right question. Whether the rtk *binary* exists says
+// nothing about whether rtk's hook is actually running; whether rtk's hook
+// claims a command is exactly what decides if the two would collide.
+//
+// Any failure means "rtk does not claim it", so a missing or broken rtk can
+// never stop toktrim from doing its job.
+func rtkClaims(command string) bool {
+	path, err := exec.LookPath("rtk")
+	if err != nil {
+		return false
+	}
+	payload, err := json.Marshal(map[string]any{
+		"tool_name":  "Bash",
+		"tool_input": map[string]any{"command": command},
+	})
+	if err != nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), rtkTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, path, "hook", "claude")
+	cmd.Stdin = bytes.NewReader(payload)
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	// rtk prints nothing when it has no opinion, and a hookSpecificOutput with
+	// an updatedInput when it wants to rewrite the command.
+	var reply struct {
+		HookSpecificOutput struct {
+			UpdatedInput map[string]any `json:"updatedInput"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal(out, &reply); err != nil {
+		return false
+	}
+	_, ok := reply.HookSpecificOutput.UpdatedInput["command"]
+	return ok
+}
+
+// rtkTimeout bounds how long toktrim waits for rtk's opinion. rtk answers in
+// about 10 ms; the timeout only matters if it hangs, and a hook must not.
+const rtkTimeout = 500 * time.Millisecond
 
 // Classify decides whether toktrim should wrap a Bash command.
 //
@@ -115,7 +174,7 @@ func (c *Classifier) Classify(command string) Decision {
 		return Decision{false, "pipeline already selects its output"}
 	}
 
-	allRTK := true
+	rtkWouldHandle := c.DeferToRTK && c.rtkClaimsAll(segments)
 	for _, seg := range segments {
 		words := normalizeRunner(splitWords(seg))
 		if len(words) == 0 {
@@ -130,18 +189,29 @@ func (c *Classifier) Classify(command string) Decision {
 		if filter.IsQuerySegment(words) {
 			return Decision{false, "query command: its output is the answer"}
 		}
-		if !c.coveredByRTK(words) {
-			allRTK = false
+	}
+	if rtkWouldHandle {
+		return Decision{false, "deferring to rtk, which claims this command"}
+	}
+	return Decision{true, "toktrim handles this"}
+}
+
+// rtkClaimsAll reports whether rtk would rewrite every segment of the command.
+//
+// Every segment, not any: if a chain mixes something rtk handles with something
+// it does not, rtk will not rewrite the chain, so deferring would leave it
+// unfiltered.
+func (c *Classifier) rtkClaimsAll(segments []string) bool {
+	ask := c.askRTK
+	if ask == nil {
+		ask = rtkClaims
+	}
+	for _, seg := range segments {
+		if !ask(seg) {
+			return false
 		}
 	}
-	if allRTK && c.RTKAvailable {
-		return Decision{false, "covered by rtk's allowlist"}
-	}
-
-	if allRTK {
-		return Decision{true, "rtk is not installed, so toktrim handles it"}
-	}
-	return Decision{true, "not covered by rtk"}
+	return len(segments) > 0
 }
 
 // normalizeRunner strips a binary runner prefix so that `npx jest` is judged
@@ -175,43 +245,9 @@ func normalizeRunner(words []string) []string {
 	return words
 }
 
-// isKnownTool reports whether a name is a tool whose output toktrim or rtk
+// isKnownTool reports whether a name is a tool whose output toktrim
 // recognises, which is what makes unwrapping `yarn <tool>` safe.
-func isKnownTool(name string) bool {
-	if rtkAllowlist[name] {
-		return true
-	}
-	switch name {
-	case "mocha", "ava", "tap", "nyc", "c8", "prettier", "biome", "tsx", "esbuild", "vite", "webpack":
-		return true
-	}
-	return false
-}
-
-// coveredByRTK reports whether rtk already compresses this segment.
-func (c *Classifier) coveredByRTK(words []string) bool {
-	cmd := base(words[0])
-	if cmd == "git" {
-		for _, w := range words[1:] {
-			if strings.HasPrefix(w, "-") {
-				continue
-			}
-			return rtkGitSubcommands[w]
-		}
-		return false
-	}
-	if cmd == "go" {
-		// rtk covers `go test`; other go subcommands are ours.
-		for _, w := range words[1:] {
-			if strings.HasPrefix(w, "-") {
-				continue
-			}
-			return w == "test"
-		}
-		return false
-	}
-	return rtkAllowlist[cmd]
-}
+func isKnownTool(name string) bool { return knownTools[name] }
 
 // isLongRunning reports whether a segment starts a process that does not end.
 func isLongRunning(words []string) bool {

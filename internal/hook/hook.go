@@ -35,6 +35,14 @@ type hookSpecificOutput struct {
 // using the process-wide classifier.
 func Run(r io.Reader, w io.Writer) int { return RunWith(Default(), r, w) }
 
+// FromConfig returns a classifier honouring a loaded configuration, so that
+// defer_to_rtk in toktrim.toml applies to the hook as well as to run mode.
+func FromConfig(deferToRTK bool) *Classifier {
+	c := *Default()
+	c.DeferToRTK = c.DeferToRTK || deferToRTK
+	return &c
+}
+
 // RunWith is Run with an explicit classifier, so a test can pin whether rtk is
 // considered present instead of depending on the machine it runs on.
 //

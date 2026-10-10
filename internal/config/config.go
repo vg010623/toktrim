@@ -50,6 +50,10 @@ type Config struct {
 	RawLogDir string
 	// RawLogMaxAgeDays is how long a raw log is kept. Zero disables pruning.
 	RawLogMaxAgeDays int
+	// DeferToRTK leaves a command alone when rtk would rewrite it. Off by
+	// default: toktrim is a standalone tool, and its behaviour should not
+	// depend on what else happens to be installed.
+	DeferToRTK bool
 	// Filters holds per-filter on/off switches from the [filters] table.
 	Filters map[string]bool
 	// Source is the path of the last config file applied, for diagnostics.
