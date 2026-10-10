@@ -1,9 +1,13 @@
 # toktrim
 
-A fallback output filter for Claude Code, meant to sit alongside **rtk** (Rust
-Token Killer). rtk compresses the common commands — git, cargo, pytest, jest,
-tsc, eslint, ls, grep — and deliberately skips everything else. toktrim takes the leftovers: npm/pnpm/yarn installs and
-scripts, `docker build`, `dotnet`, and pipelines or chained commands.
+An output filter for Claude Code. Install it, add one hook, and verbose command
+output stops eating your context: npm/pnpm/yarn installs and scripts, test
+runners, `docker build`, `dotnet`, long build logs, noisy application logs, and
+pipelines or chained commands.
+
+toktrim is standalone and has no dependencies. If you also run **rtk** there is
+an [opt-in switch](#running-alongside-rtk) to let rtk keep the commands it
+handles.
 
 It is a wrapper, not a rewriter. **The exit code always matches the wrapped
 command, output is always printed before toktrim exits, and anything removed is
@@ -83,33 +87,75 @@ rather than a binary.
 
 ## Running alongside rtk
 
-toktrim and **rtk** (Rust Token Killer) both install as a
-`PreToolUse` hook on `Bash`, and both answer with `updatedInput`. Claude Code
-runs hooks in parallel and, when more than one rewrites the same tool call,
-**the last to finish wins** — so with both hooks enabled, which tool filters a
-given command is non-deterministic.
+Having **rtk** (Rust Token Killer) installed is never a problem — toktrim does
+not consult it and does not need it. The question is only whether you run
+*both hooks* at once.
 
-Pick one of these:
+Both tools install as a `PreToolUse` hook on `Bash`, and both answer with
+`updatedInput`. Claude Code runs hooks in parallel and, when more than one
+rewrites the same tool call, **the last to finish wins** — so with both hooks
+enabled and nothing else configured, which tool filtered a given command is
+non-deterministic. Pick one of the two setups below.
 
-**Use toktrim on its own** (the default). Replace rtk's hook with toktrim's in
-`settings.json`. Nothing else to configure; toktrim's filters already cover
-jest, vitest, mocha, node:test, pytest, go test and cargo.
+### Option A — toktrim only (simplest)
 
-**Keep rtk in charge of what it handles.** Leave rtk's hook in place, add
-toktrim's, and switch deference on:
+Replace rtk's hook with toktrim's. Keep the rtk binary installed; just do not
+run both hooks.
+
+```diff
+-          { "type": "command", "command": "rtk hook claude" }
++          { "type": "command", "command": "toktrim hook" }
+```
+
+Nothing else to configure. toktrim's own filters already cover jest, vitest,
+mocha, node:test, pytest, go test and cargo, so nothing goes unfiltered.
+
+This is also the setup to use if you are **evaluating** toktrim: with both
+hooks running you cannot tell which tool produced any given output. It is one
+line to put back.
+
+### Option B — both hooks, rtk first
+
+Add toktrim's hook next to rtk's:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "rtk hook claude" },
+          { "type": "command", "command": "toktrim hook" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**and** switch deference on, or the two will race:
 
 ```toml
-# toktrim.toml
+# toktrim.toml, in the project root or ~/.config/toktrim/
 defer_to_rtk = true
 ```
 
-or `TOKTRIM_DEFER_TO_RTK=1`. toktrim then asks rtk's own hook whether it claims
-a command and stands down if it does. That is checked against the installed rtk
-rather than a hardcoded list, because rtk's coverage grows between releases —
-rtk 0.44.2 claims about seventy commands, including `npm run`, `docker`,
-`dotnet`, `go` and `make`. Asking costs about 10 ms per Bash call, and if rtk
-is missing or fails to answer, toktrim handles the command rather than leaving
-it unfiltered.
+(`TOKTRIM_DEFER_TO_RTK=1` does the same.) rtk then keeps the commands it
+handles — `git`, `cargo`, `jest`, `npm run`, `docker`, `dotnet`, `make` and so
+on — and toktrim picks up what rtk leaves, such as `npm install`, `npm test`
+and shell scripts.
+
+> Do not add the second hook without `defer_to_rtk`. That is the one
+> combination that misbehaves.
+
+With deference on, toktrim asks rtk's own hook whether it claims a command
+rather than consulting a copy of rtk's allowlist. That is deliberate: rtk's
+coverage grows between releases — 0.44.2 claims around seventy commands — and a
+hardcoded list goes stale silently. It also answers the right question, since
+whether the rtk *binary* exists says nothing about whether rtk's hook is
+running. Asking costs about 10 ms per Bash call, and if rtk is missing or fails
+to answer, toktrim handles the command rather than leaving it unfiltered.
 
 ## Install
 
@@ -157,11 +203,29 @@ toktrim version
 Add to `~/.claude/settings.json` (or a project `.claude/settings.json`):
 
 ```json
-{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"toktrim hook"}]}]}}
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "toktrim hook" }
+        ]
+      }
+    ]
+  }
+}
 ```
+
+Restart Claude Code, and that is the whole setup. There is nothing else to
+configure.
 
 On Windows, Claude Code's Bash tool runs under Git Bash, and `toktrim hook`
 needs to be resolvable on the `PATH` that Claude Code sees.
+
+**Already running rtk?** See [Running alongside rtk](#running-alongside-rtk) —
+you need either to replace its hook or to add one config line, because two
+hooks rewriting the same command will fight.
 
 ### The hook never approves anything
 
@@ -189,16 +253,21 @@ toktrim run -- bash -c 'npm run build'
 
 ### Debugging the hook
 
+Ask the hook what it would do with a command, without touching your settings:
+
 ```bash
 echo '{"tool_input":{"command":"npm run build"}}' | toktrim hook
 # {"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"command":"toktrim run -- bash -c 'npm run build'"}}}
 
-echo '{"tool_input":{"command":"git status"}}' | toktrim hook
-# (nothing — rtk's territory)
+echo '{"tool_input":{"command":"npm run dev"}}' | TOKTRIM_HOOK_DEBUG=1 toktrim hook
+# (no output; on stderr) [toktrim hook] leaving alone: long-running or interactive command
 
-TOKTRIM_HOOK_DEBUG=1 echo '{"tool_input":{"command":"npm run dev"}}' | toktrim hook
-# [toktrim hook] leaving alone: long-running or interactive command
+echo '{"tool_input":{"command":"npm ls --all"}}' | TOKTRIM_HOOK_DEBUG=1 toktrim hook
+# (no output; on stderr) [toktrim hook] leaving alone: query command: its output is the answer
 ```
+
+The environment variable goes on `toktrim`, not on `echo` — `VAR=1 echo ... |
+toktrim hook` sets it for the wrong process.
 
 The hook always exits 0 and prints nothing on any error, so it can never block a
 command.
@@ -286,16 +355,14 @@ to the model, so unconditional telemetry would cost the tokens it claims to save
 
 ## Known limitations
 
-- **What the hook skips depends on whether rtk is installed.** With rtk on
-  `PATH`, `git status` and `jest` are left to it; without rtk, toktrim handles
-  them, because otherwise nothing would. The same command can therefore be
-  wrapped on one machine and skipped on another. `TOKTRIM_HOOK_DEBUG=1` says
-  which rule applied.
 - **Two hooks rewriting one command race.** Claude Code runs `PreToolUse` hooks
   in parallel and, when more than one returns `updatedInput` for the same tool
-  call, the last to finish wins. This is exactly why toktrim skips everything
-  rtk handles — the skip list keeps the two tools from fighting. If you add a
-  third hook that rewrites Bash commands, make sure its scope does not overlap.
+  call, the last to finish wins. Run one Bash-rewriting hook, or use
+  `defer_to_rtk` — see [Running alongside rtk](#running-alongside-rtk). The same
+  applies to any other hook that rewrites Bash commands.
+- **`defer_to_rtk` costs a subprocess per Bash call.** Roughly 10 ms, because
+  the only accurate way to know what rtk covers is to ask it. It is off by
+  default, so you only pay for it if you want it.
 - **Windows cannot forward a signal.** `os.Process.Signal` supports only `Kill`
   there, so a relayed `SIGTERM` kills the child. Everything toktrim processed is
   already flushed by then. In practice a console process group receives Ctrl-C
