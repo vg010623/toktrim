@@ -116,6 +116,12 @@ func (c *Config) apply(values map[string]string) error {
 			if err := setInt(&c.RawLogMaxAgeDays, raw, key); err != nil {
 				return err
 			}
+		case "defer_to_rtk":
+			b, err := strconv.ParseBool(raw)
+			if err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+			c.DeferToRTK = b
 		case "enabled":
 			b, err := strconv.ParseBool(raw)
 			if err != nil {
@@ -168,6 +174,12 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("TOKTRIM_RAW_LOG_DIR"); v != "" {
 		c.RawLogDir = v
+	}
+	switch os.Getenv("TOKTRIM_DEFER_TO_RTK") {
+	case "1", "true", "yes":
+		c.DeferToRTK = true
+	case "0", "false", "no":
+		c.DeferToRTK = false
 	}
 }
 

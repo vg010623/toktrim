@@ -28,6 +28,7 @@ Environment:
   TOKTRIM_DISABLE=1      pass everything through unchanged
   TOKTRIM_RAW_LOG_DIR    where to write full-output logs
   TOKTRIM_NO_LEDGER=1    do not record runs
+  TOKTRIM_DEFER_TO_RTK=1 leave commands rtk would rewrite to rtk
   TOKTRIM_STATE_DIR      where the ledger lives
   TOKTRIM_HOOK_DEBUG=1   explain why the hook stayed silent
 
@@ -55,7 +56,7 @@ func main() {
 	case "pipe":
 		os.Exit(runner.ProcessStdin(loadConfig()))
 	case "hook":
-		os.Exit(hook.Run(os.Stdin, os.Stdout))
+		os.Exit(hook.RunWith(hook.FromConfig(loadConfig().DeferToRTK), os.Stdin, os.Stdout))
 	case "stats":
 		os.Exit(runStats(os.Args[2:]))
 	case "version", "--version", "-V":

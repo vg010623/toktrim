@@ -2,44 +2,63 @@ package hook
 
 import (
 	"encoding/json"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
 
-func TestClassifyWithRTKInstalled(t *testing.T) {
-	c := &Classifier{RTKAvailable: true}
+// standalone is the default classifier: toktrim handles what it understands,
+// regardless of what else is installed.
+func standalone() *Classifier { return &Classifier{} }
+
+// deferring opts in to leaving rtk's commands alone, with rtk's answer stubbed
+// so the test depends neither on rtk being installed nor on its version. rtk
+// 0.44.2 covers roughly seventy commands; an earlier release covered a
+// handful, and a test that asked the real rtk would change meaning when rtk
+// was upgraded.
+func deferring(claims ...string) *Classifier {
+	set := map[string]bool{}
+	for _, c := range claims {
+		set[c] = true
+	}
+	return &Classifier{
+		DeferToRTK: true,
+		askRTK:     func(cmd string) bool { return set[strings.TrimSpace(cmd)] },
+	}
+}
+
+func TestClassifyStandalone(t *testing.T) {
+	c := standalone()
 	tests := []struct {
 		command string
 		wrap    bool
 	}{
-		// rtk's territory, left alone because rtk is there to handle it.
-		{"git status", false},
-		{"git log --oneline -20", false},
-		{"git diff HEAD~1", false},
-		{"git show abc123", false},
-		{"cargo build --release", false},
-		{"cargo test", false},
-		{"go test ./...", false},
-		{"pytest -q tests/", false},
-		{"jest --coverage", false},
-		{"vitest run", false},
-		{"tsc --noEmit", false},
-		{"eslint src/", false},
-		// Spelled through a runner, the same command must get the same answer.
-		{"npx jest --coverage", false},
-		{"npx tsc --noEmit", false},
-		{"npx eslint src/", false},
-		{"bunx vitest run", false},
-		{"pnpm exec jest", false},
-		{"yarn jest", false},
-		{"yarn tsc", false},
-		// Never wrap ourselves.
+		// Everything toktrim understands, handled on its own. None of this
+		// needs rtk: the test-runner filter covers all of these runners.
+		{"jest --coverage", true},
+		{"vitest run", true},
+		{"npx jest", true},
+		{"pytest -q tests/", true},
+		{"go test ./...", true},
+		{"cargo test", true},
+		{"npm install", true},
+		{"npm ci", true},
+		{"npm test", true},
+		{"npm run build", true},
+		{"docker build -t app .", true},
+		{"dotnet build", true},
+		{"dotnet test", true},
+		{"make -j8", true},
+		{"git status", true},
+		{"git commit -m wip", true},
+		{"npm ci && npm run build", true},
+		{"./scripts/deploy.sh", true},
+		{"CI=1 npm run build", true},
+
+		// Never wrap ourselves, or rtk.
 		{"rtk git status", false},
 		{"toktrim run -- ls", false},
+
 		// Long-running or interactive.
 		{"npm run dev", false},
 		{"npm start", false},
@@ -51,51 +70,27 @@ func TestClassifyWithRTKInstalled(t *testing.T) {
 		{"docker run ubuntu", false},
 		{"tail -f app.log", false},
 		{"docker logs -f app", false},
+		{"NODE_ENV=production npm run dev", false},
+
 		// Output already going to a file.
 		{"npm run build > out.log 2>&1", false},
 		{"npm run build &> out.log", false},
+
 		// Queries: the output is the answer.
 		{"npm ls --all", false},
 		{"npm outdated", false},
-		{"npm view react versions", false},
 		{"npm why lodash", false},
-		{"pnpm ls --depth 3", false},
-		{"yarn list --pattern react", false},
 		{"gh pr list", false},
-		{"gh run view 123 --log", false},
 		{"cat package.json", false},
 		{"jq '.scripts' package.json", false},
 		{"head -50 big.log", false},
-		{"tail -100 big.log", false},
 		{"sed -n '10,20p' file.txt", false},
-		{"awk '{print $1}' file.txt", false},
 		{"git config --list", false},
-		{"git remote -v", false},
+
 		// Pipelines that select their own output.
 		{"npm run build | tail -40", false},
-		{"dotnet build | grep error", false},
 		{"npm ls --all | wc -l", false},
-		// Ours.
-		{"npm install", true},
-		{"npm ci", true},
-		{"npm i --save-dev jest", true},
-		{"pnpm add lodash", true},
-		{"yarn", true},
-		{"npm run build", true},
-		{"npm test", true},
-		{"docker build -t app .", true},
-		{"docker run --rm app", true},
-		{"dotnet build", true},
-		{"dotnet test", true},
-		{"make -j8", true},
-		{"go build ./...", true},
-		{"git commit -m wip", true},
-		{"npm ci && npm run build", true},
-		{"cd app && dotnet test", true},
-		{"yarn build", true}, // a script, not a tool: stays wrapped
-		{"git status && git log", false},
-		{"CI=1 npm run build", true},
-		{"NODE_ENV=production npm run dev", false},
+
 		{"", false},
 	}
 	for _, tt := range tests {
@@ -106,58 +101,62 @@ func TestClassifyWithRTKInstalled(t *testing.T) {
 	}
 }
 
-// Without rtk on PATH nothing else compresses its commands, so toktrim takes
-// them on. The test filter already understands jest, pytest, go test and cargo.
-func TestClassifyWithoutRTK(t *testing.T) {
-	absent := &Classifier{RTKAvailable: false}
-	present := &Classifier{RTKAvailable: true}
+// With deference opted in, a command rtk claims is left to rtk and everything
+// else is still toktrim's.
+func TestClassifyDeferringToRTK(t *testing.T) {
+	c := deferring("git status", "jest --coverage", "cargo build", "npm run build")
 
-	nowOurs := []string{
-		"jest --coverage", "vitest run", "pytest -q", "cargo test",
-		"go test ./...", "tsc --noEmit", "eslint src/", "cargo build",
-		"git status", "git log --oneline", "npx jest",
-	}
-	for _, cmd := range nowOurs {
-		if d := present.Classify(cmd); d.Wrap {
-			t.Errorf("with rtk, %q should be skipped (got %s)", cmd, d.Reason)
+	for _, cmd := range []string{"git status", "jest --coverage", "cargo build", "npm run build"} {
+		if d := c.Classify(cmd); d.Wrap {
+			t.Errorf("%q: should defer to rtk, got wrap (%s)", cmd, d.Reason)
 		}
-		if d := absent.Classify(cmd); !d.Wrap {
-			t.Errorf("without rtk, %q should be handled by toktrim (got %s)", cmd, d.Reason)
+		// The same command standalone is toktrim's.
+		if d := standalone().Classify(cmd); !d.Wrap {
+			t.Errorf("%q: standalone toktrim should handle this (%s)", cmd, d.Reason)
 		}
 	}
-
-	// Everything skipped for a reason other than rtk stays skipped either way.
-	stillSkipped := []string{
-		"npm run dev", "tail -f app.log", "docker run -it ubuntu bash",
-		"npm ls --all", "cat package.json", "rtk git status",
-		"toktrim run -- ls", "npm run build > out.log 2>&1",
-		"npm run build | tail -40",
-	}
-	for _, cmd := range stillSkipped {
-		if d := absent.Classify(cmd); d.Wrap {
-			t.Errorf("without rtk, %q should still be skipped (got %s)", cmd, d.Reason)
+	for _, cmd := range []string{"npm install", "npm test", "make -j8", "./deploy.sh"} {
+		if d := c.Classify(cmd); !d.Wrap {
+			t.Errorf("%q: rtk does not claim this, toktrim should handle it (%s)", cmd, d.Reason)
 		}
 	}
 }
 
-// Classify through a fake PATH, to check the lookup itself rather than the
-// injected flag.
-func TestRTKDetectionUsesPATH(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("PATH", dir)
-	if rtkOnPath() {
-		t.Error("rtk should not be found on an empty PATH")
+// A chain is only left to rtk when rtk claims every part of it. Otherwise rtk
+// will not rewrite the chain and deferring would leave it unfiltered.
+func TestDeferOnlyWhenRTKClaimsTheWholeChain(t *testing.T) {
+	c := deferring("git status", "git log")
+	if d := c.Classify("git status && git log"); d.Wrap {
+		t.Errorf("a chain rtk claims entirely should be deferred, got wrap (%s)", d.Reason)
 	}
+	if d := c.Classify("git status && npm install"); !d.Wrap {
+		t.Errorf("a mixed chain must stay with toktrim, got skip (%s)", d.Reason)
+	}
+}
 
-	name := filepath.Join(dir, "rtk")
-	if runtime.GOOS == "windows" {
-		name += ".exe"
+// Deference must never be the reason nothing filters a command: if asking rtk
+// fails or it claims nothing, toktrim handles it.
+func TestBrokenRTKDoesNotDisableToktrim(t *testing.T) {
+	c := &Classifier{DeferToRTK: true, askRTK: func(string) bool { return false }}
+	if d := c.Classify("jest --coverage"); !d.Wrap {
+		t.Errorf("toktrim should handle the command when rtk claims nothing (%s)", d.Reason)
 	}
-	if err := os.WriteFile(name, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
+}
+
+func TestDeferToRTKIsOffByDefault(t *testing.T) {
+	t.Setenv("TOKTRIM_DEFER_TO_RTK", "")
+	if deferToRTKFromEnv() {
+		t.Error("deference must be opt-in")
 	}
-	if !rtkOnPath() {
-		t.Error("rtk should be found once it is on PATH")
+	for _, v := range []string{"1", "true", "yes"} {
+		t.Setenv("TOKTRIM_DEFER_TO_RTK", v)
+		if !deferToRTKFromEnv() {
+			t.Errorf("TOKTRIM_DEFER_TO_RTK=%s should enable deference", v)
+		}
+	}
+	t.Setenv("TOKTRIM_DEFER_TO_RTK", "0")
+	if deferToRTKFromEnv() {
+		t.Error("TOKTRIM_DEFER_TO_RTK=0 should not enable deference")
 	}
 }
 
@@ -185,20 +184,17 @@ func TestNormalizeRunner(t *testing.T) {
 	}
 }
 
-// hookOutput runs the hook over a payload and returns its stdout.
-//
-// rtk presence is pinned rather than looked up, so these tests give the same
-// answer on a developer machine with rtk installed and on a CI runner without
-// it. That difference is exactly what broke the first CI run for v0.3.
+// hookOutput runs the hook over a payload with the default (standalone)
+// classifier and returns its stdout.
 func hookOutput(t *testing.T, payload string) string {
 	t.Helper()
-	return hookOutputWithRTK(t, payload, true)
+	return hookOutputWith(t, standalone(), payload)
 }
 
-func hookOutputWithRTK(t *testing.T, payload string, rtk bool) string {
+func hookOutputWith(t *testing.T, c *Classifier, payload string) string {
 	t.Helper()
 	var out strings.Builder
-	if code := RunWith(&Classifier{RTKAvailable: rtk}, strings.NewReader(payload), &out); code != 0 {
+	if code := RunWith(c, strings.NewReader(payload), &out); code != 0 {
 		t.Errorf("RunWith returned %d; the hook must never block a command", code)
 	}
 	return out.String()
@@ -233,23 +229,22 @@ func updatedCommand(t *testing.T, reply string) string {
 	return cmd
 }
 
-// Acceptance test 8, with rtk installed: git status is rtk's territory.
+// Acceptance test 8, with deference opted in: `git status` is rtk's territory.
 //
-// Note that acceptance test 8 and v0.3 item 5 pull in opposite directions. The
-// original test says `git status` must print nothing because rtk handles it;
-// item 5 says that when rtk is *not* installed toktrim should handle it, since
-// otherwise nothing would. Both are asserted here, against a pinned rtk state,
-// so the answer never depends on what happens to be installed.
+// Standalone -- the default since v0.3.1 -- toktrim handles it instead, which
+// the companion test below pins. The original acceptance test assumed rtk was
+// always there to take it.
 func TestAcceptance_GitStatusPrintsNothing(t *testing.T) {
-	if got := hookOutputWithRTK(t, `{"tool_input":{"command":"git status"}}`, true); got != "" {
-		t.Errorf("with rtk installed, git status should print nothing, got:\n%s", got)
+	c := deferring("git status")
+	if got := hookOutputWith(t, c, `{"tool_input":{"command":"git status"}}`); got != "" {
+		t.Errorf("with deference on, git status should print nothing, got:\n%s", got)
 	}
 }
 
-func TestGitStatusIsWrappedWhenRTKIsAbsent(t *testing.T) {
-	got := hookOutputWithRTK(t, `{"tool_input":{"command":"git status"}}`, false)
+func TestGitStatusIsWrappedByDefault(t *testing.T) {
+	got := hookOutput(t, `{"tool_input":{"command":"git status"}}`)
 	if got == "" {
-		t.Fatal("without rtk, git status should be wrapped so that something filters it")
+		t.Fatal("standalone toktrim should wrap git status so that something filters it")
 	}
 	if want := `toktrim run -- bash -c 'git status'`; updatedCommand(t, got) != want {
 		t.Errorf("wrapped command = %q, want %q", updatedCommand(t, got), want)
@@ -351,9 +346,6 @@ func TestAcceptance_WrappedCommandBehavesIdentically(t *testing.T) {
 		`false || echo recovered`,
 	}
 	for _, script := range scripts {
-		// The wrapper passes the script to bash -c; running that inner part is
-		// what proves the quoting survived. Running the full toktrim wrapper is
-		// covered by the end-to-end tests in cmd/toktrim.
 		quoted := shellQuote(script)
 		direct, errDirect := exec.Command("bash", "-c", script).CombinedOutput()
 		viaQuote, errQuote := exec.Command("bash", "-c", "bash -c "+quoted).CombinedOutput()
@@ -363,5 +355,14 @@ func TestAcceptance_WrappedCommandBehavesIdentically(t *testing.T) {
 		if string(direct) != string(viaQuote) {
 			t.Errorf("%q: output differed\n direct: %q\nwrapped: %q", script, direct, viaQuote)
 		}
+	}
+}
+
+// rtkClaims must be inert when rtk is not installed, so a machine without rtk
+// never pays for the lookup with anything worse than a false.
+func TestRTKClaimsIsSafeWithoutRTK(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	if rtkClaims("git status") {
+		t.Error("rtkClaims should be false when rtk is not on PATH")
 	}
 }

@@ -175,10 +175,13 @@ func fakeRTKDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	name := filepath.Join(dir, "rtk")
-	body := "#!/bin/sh\nexit 0\n"
+	// It has to answer like rtk's hook: a hookSpecificOutput naming a rewritten
+	// command means "rtk claims this".
+	reply := `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"command":"rtk x"}}}`
+	body := "#!/bin/sh\ncat >/dev/null\nprintf '%s' '" + reply + "'\n"
 	if runtime.GOOS == "windows" {
 		name += ".bat"
-		body = "@echo off\r\nexit /b 0\r\n"
+		body = "@echo off\r\necho " + strings.ReplaceAll(reply, "\"", "^\"") + "\r\n"
 	}
 	if err := os.WriteFile(name, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
@@ -187,25 +190,27 @@ func fakeRTKDir(t *testing.T) string {
 }
 
 // runHook pipes a PreToolUse payload through the built binary's hook
-// subcommand, with rtk present or absent on PATH as asked.
+// subcommand, standalone: no rtk reachable and no deference.
 func runHook(t *testing.T, bin, payload string) string {
 	t.Helper()
-	return runHookWithRTK(t, bin, payload, true)
+	return runHookEnv(t, bin, payload, []string{"PATH=" + t.TempDir(), "TOKTRIM_DEFER_TO_RTK=0"})
 }
 
-func runHookWithRTK(t *testing.T, bin, payload string, withRTK bool) string {
+// runHookDeferring opts in to deference with a fake rtk that claims everything,
+// which is the condition acceptance test 8 describes.
+func runHookDeferring(t *testing.T, bin, payload string) string {
+	t.Helper()
+	return runHookEnv(t, bin, payload, []string{
+		"PATH=" + fakeRTKDir(t) + string(os.PathListSeparator) + os.Getenv("PATH"),
+		"TOKTRIM_DEFER_TO_RTK=1",
+	})
+}
+
+func runHookEnv(t *testing.T, bin, payload string, extra []string) string {
 	t.Helper()
 	cmd := exec.Command(bin, "hook")
 	cmd.Env = append(os.Environ(), testEnv(t)...)
-	path := os.Getenv("PATH")
-	if withRTK {
-		path = fakeRTKDir(t) + string(os.PathListSeparator) + path
-	} else {
-		// Keep the shell tools the hook itself does not need, but make sure
-		// no real rtk is reachable.
-		path = t.TempDir()
-	}
-	cmd.Env = append(cmd.Env, "PATH="+path)
+	cmd.Env = append(cmd.Env, extra...)
 	cmd.Stdin = strings.NewReader(payload)
 	var out strings.Builder
 	cmd.Stdout = &out
@@ -218,17 +223,18 @@ func runHookWithRTK(t *testing.T, bin, payload string, withRTK bool) string {
 
 // Acceptance tests 8, 9 and 10, through the real binary.
 //
-// AT8 is asserted with rtk on PATH, because that is the condition the original
-// test describes ("rtk's territory"). The companion case below covers what v0.3
-// item 5 asks for when rtk is missing.
+// Since v0.3.1 toktrim is standalone by default, so `git status` is wrapped
+// rather than left to rtk; TOKTRIM_DEFER_TO_RTK=1 restores the old behaviour
+// and is asserted too. Both cases pin the environment rather than inheriting
+// whatever is installed on the machine running the tests.
 func TestAcceptance_HookThroughBinary(t *testing.T) {
 	bin := buildToktrim(t)
 
-	if got := runHookWithRTK(t, bin, `{"tool_input":{"command":"git status"}}`, true); got != "" {
-		t.Errorf("AT8: with rtk installed, git status should print nothing, got %q", got)
+	if got := runHook(t, bin, `{"tool_input":{"command":"git status"}}`); got == "" {
+		t.Error("standalone, git status should be wrapped so that something filters it")
 	}
-	if got := runHookWithRTK(t, bin, `{"tool_input":{"command":"git status"}}`, false); got == "" {
-		t.Error("without rtk, git status should be wrapped so that something filters it")
+	if got := runHookDeferring(t, bin, `{"tool_input":{"command":"git status"}}`); got != "" {
+		t.Errorf("AT8: with TOKTRIM_DEFER_TO_RTK=1 and rtk present, git status should print nothing, got %q", got)
 	}
 
 	got := runHook(t, bin, `{"tool_input":{"command":"npm run build"}}`)
