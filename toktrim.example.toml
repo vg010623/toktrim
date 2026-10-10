@@ -45,3 +45,16 @@ docker-build = true  # docker build step and layer progress
 dotnet = true        # dotnet build / test restore and per-project lines
 dedup = true         # collapse runs of identical lines
 truncate = true      # head/tail truncation for everything else
+
+# ---------------------------------------------------------------------------
+# Added in v0.3
+
+# How far back the dedup filter looks for a repeated line. A line repeating an
+# earlier one within this many lines is dropped once that shape has already
+# appeared a few times; the total is reported once at the end. Set to 0 to
+# collapse only adjacent runs.
+similar_window = 50
+
+# `toktrim stats` prunes raw output logs older than this. Set to 0 to keep them
+# forever and prune them yourself.
+raw_log_max_age_days = 7

@@ -21,6 +21,9 @@ const (
 	DefaultMinRun = 3
 	// DefaultSimilarWindow is how far back a repeated line is still a repeat.
 	DefaultSimilarWindow = 50
+	// DefaultRawLogMaxAgeDays is how long a raw output log is kept before
+	// `toktrim stats` prunes it.
+	DefaultRawLogMaxAgeDays = 7
 )
 
 // Config is the effective configuration for one toktrim invocation.
@@ -45,6 +48,8 @@ type Config struct {
 	// RawLogDir is where full-output logs are written. Empty means the system
 	// temp directory.
 	RawLogDir string
+	// RawLogMaxAgeDays is how long a raw log is kept. Zero disables pruning.
+	RawLogMaxAgeDays int
 	// Filters holds per-filter on/off switches from the [filters] table.
 	Filters map[string]bool
 	// Source is the path of the last config file applied, for diagnostics.
@@ -63,5 +68,6 @@ func Default() *Config {
 		ContextAfter:     DefaultContextAfter,
 		MinRun:           DefaultMinRun,
 		SimilarWindow:    DefaultSimilarWindow,
+		RawLogMaxAgeDays: DefaultRawLogMaxAgeDays,
 	}
 }

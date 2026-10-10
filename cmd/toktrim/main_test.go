@@ -34,11 +34,23 @@ func buildToktrim(t *testing.T) string {
 	return bin
 }
 
+// testEnv isolates a run of the built binary from the developer's real state:
+// no ledger entries, and raw logs in a directory the test owns.
+func testEnv(t *testing.T) []string {
+	t.Helper()
+	return []string{
+		"TOKTRIM_STATS=",
+		"TOKTRIM_NO_LEDGER=1",
+		"TOKTRIM_STATE_DIR=" + t.TempDir(),
+		"TOKTRIM_RAW_LOG_DIR=" + t.TempDir(),
+	}
+}
+
 // runToktrim invokes the built binary and returns stdout and the exit code.
 func runToktrim(t *testing.T, bin string, args ...string) (string, int) {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
-	cmd.Env = append(os.Environ(), "TOKTRIM_STATS=")
+	cmd.Env = append(os.Environ(), testEnv(t)...)
 	var stdout strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = os.Stderr
@@ -159,6 +171,7 @@ func TestAcceptance_WorksWithoutNetwork(t *testing.T) {
 func runHook(t *testing.T, bin, payload string) string {
 	t.Helper()
 	cmd := exec.Command(bin, "hook")
+	cmd.Env = append(os.Environ(), testEnv(t)...)
 	cmd.Stdin = strings.NewReader(payload)
 	var out strings.Builder
 	cmd.Stdout = &out
@@ -226,7 +239,9 @@ func TestAcceptance_HookWrappedCommandRunsIdentically(t *testing.T) {
 	direct, errDirect := exec.Command("bash", "-c", script).CombinedOutput()
 
 	wrappedCmd := exec.Command("bash", "-c", wrapped)
-	wrappedCmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	wrappedCmd.Env = append(os.Environ(), testEnv(t)...)
+	wrappedCmd.Env = append(wrappedCmd.Env,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	viaHook, errHook := wrappedCmd.CombinedOutput()
 
 	if (errDirect == nil) != (errHook == nil) {

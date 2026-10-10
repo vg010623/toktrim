@@ -14,7 +14,9 @@ recoverable from a log file named in the output.**
 | Command family | What is removed | What is always kept |
 | --- | --- | --- |
 | `npm`/`pnpm`/`yarn install` | deprecation warnings, registry and dependency-tree chatter, funding notices | `ERR!` blocks, `added N packages`, vulnerability counts |
-| `npm run <script>` | the above, plus passing-test noise when the script turns out to be jest or vitest | every failing test's name, assertion and stack frames; the summary |
+| `npm test` / `npm run <script>` | the above, plus passing-test noise once the output identifies itself as jest, vitest, mocha, node:test or TAP | every failing test's name, assertion, diff and stack frames, byte-for-byte; the summary |
+| any noisy log stream | lines repeated by *shape* — same sentence, different duration, id, hash or quoted value | anything carrying failure information, and every line whose varying part is an identifier |
+| query commands (`npm ls`, `gh`, `cat`, `jq`, …) | escape codes and adjacent duplicates only | everything else: a query's output is the answer, so it is never truncated |
 | `docker build` | each step's layer and download progress | step headers, the failing step's full output, the final image ID |
 | `dotnet build`/`test` | per-project restore and build lines | warnings with their codes, errors, the build and test summary |
 | anything else | runs of identical lines; the middle of very long output | the first 30 and last 60 lines, and every failure line in between |
@@ -29,29 +31,55 @@ saying where it came from.
 
 | Fixture | Bytes | Lines | Saved |
 | --- | --- | --- | --- |
-| `npm install` (real capture, 4 deps with deprecated transitives) | 186,289 → 867 | 1871 → 22 | 99.5% |
-| `make` (400 lines, failures buried in the middle) | 15,512 → 4,000 | 406 → 102 | 74.2% |
+| `npm install` (real capture, deprecated transitives) | 186,289 → 866 | 1871 → 21 | 99.5% |
+| `npm test`, mocha, 400 passing + 6 failures | 52,301 → 4,434 | 967 → 158 | 91.5% |
+| `npm start`, interleaved app logs | 11,761 → 1,311 | 154 → 20 | 88.9% |
+| `npm test`, mocha, all passing | 11,866 → 1,694 | 221 → 54 | 85.7% |
+| `make` (400 lines, failures in the middle) | 15,512 → 4,000 | 406 → 102 | 74.2% |
+| `npm test`, node:test / TAP | 2,202 → 592 | 120 → 28 | 73.1% |
 | `cargo` with spinners and a download bar | 846 → 284 | 15 → 8 | 66.4% |
 | `docker build` with a failing step | 3,866 → 2,015 | 84 → 52 | 47.9% |
-| `dotnet build` with 2 warnings and 2 errors | 1,827 → 1,469 | 23 → 18 | 19.6% |
-| `npm test` with a failing jest suite | 1,347 → 1,347 | 45 → 45 | 0% |
+| `dotnet build`, 2 warnings + 2 errors | 1,827 → 1,469 | 23 → 18 | 19.6% |
+| `npm test`, failing jest suite | 1,347 → 1,347 | 45 → 45 | 0% |
+| `npx eslint`, every line an error | 8,106 → 8,106 | 125 → 125 | 0% |
+| `npm ls --all` (3145 lines) | 157,075 → 157,075 | 3145 → 3145 | 0% |
 
-That last row is not a bug. A failing test run is almost entirely failure
-information, so toktrim leaves it alone. Compression is highest where the output
-is noise and lowest where it matters — which is the point.
+The three 0% rows are the point, not a shortfall:
+
+- A **failing jest suite** is almost entirely failure information, so there is
+  nothing to drop.
+- **eslint output where every line is an error** has nothing droppable either,
+  and toktrim now returns the original bytes rather than adding markers. In
+  v0.2.0 this case came out **2.89% larger** than its input.
+- **`npm ls --all`** is a query: its output *is* the answer, so it is never
+  truncated. v0.2.0 cut it to 435 lines and lost every package that only
+  appears in the middle of the tree.
+
+Compression is highest where the output is noise and lowest where it matters.
 
 ## What it deliberately skips
 
 toktrim's hook leaves a command alone when:
 
 - it starts with `rtk` or `toktrim`;
-- **rtk already covers it**: `git status`/`log`/`diff`/`show`, `cargo`,
-  `go test`, `pytest`, `jest`, `vitest`, `tsc`, `eslint`, `ls`, `grep`, `find`.
-  Note that `go build` and `git commit` are *not* in that list, so toktrim does
-  handle those;
+- **rtk already covers it *and rtk is installed***: `git status`/`log`/`diff`/
+  `show`, `cargo`, `go test`, `pytest`, `jest`, `vitest`, `tsc`, `eslint`, `ls`,
+  `grep`, `find`. toktrim looks `rtk` up on `PATH` once per process; if it is
+  not there, toktrim handles these too, since otherwise nothing would.
+  `go build` and `git commit` are *not* on rtk's list, so toktrim always handles
+  those. A binary runner is normalised first, so `npx jest`, `bunx vitest`,
+  `pnpm exec jest` and `yarn jest` are treated exactly like bare `jest` — in
+  v0.2.0 the `npx` spelling was wrapped while the bare one was skipped;
 - it is long-running or interactive: a `dev`, `start`, `watch`, `serve` script,
   `--watch`, `-it`, `tail -f`, or `docker run` without `--rm`;
-- it already sends all output to a file (`> log 2>&1`, `&> log`).
+- it already sends all output to a file (`> log 2>&1`, `&> log`);
+- **it is a query, whose output is the answer**: `npm`/`pnpm`/`yarn`
+  `ls`/`outdated`/`view`/`why`/`info`/`explain`/`search`/`audit`, `gh`, `cat`,
+  `jq`, `head`, non-follow `tail`, `sed -n`, `awk`, `git config`/`remote`/
+  `rev-parse`/`describe`;
+- **the pipeline already selects its own output**: anything ending in `head`,
+  `tail`, `grep`, `wc`, `sort`, `uniq`, `cut` or `jq` — whoever wrote that
+  pipeline already decided how much they wanted.
 
 A chain like `npm ci && npm run build` *is* handled, because rtk does not
 rewrite chains — unless every segment is itself an rtk command.
@@ -90,6 +118,8 @@ both, and builds with `GOPROXY=off` to prove it.
 toktrim run -- npm install          # run a command, filter its output
 toktrim run -- bash -c 'a && b'     # pipes, &&, redirects all work
 cat build.log | toktrim pipe        # filter output you already have
+toktrim stats                      # what toktrim has saved
+toktrim stats --since 7d           # and over the last week
 toktrim version
 ```
 
@@ -159,7 +189,9 @@ passthrough_bytes = 2048
 context_before = 3        # lines kept around a failure
 context_after = 3
 min_run = 3               # shortest run of identical lines to collapse
+similar_window = 50       # how far back a repeated line is still a repeat
 raw_log_dir = ""          # empty = system temp dir
+raw_log_max_age_days = 7  # `toktrim stats` prunes logs older than this
 
 [truncate]
 head_lines = 30
@@ -188,6 +220,8 @@ config never stops a command from running.
 | `TOKTRIM_DISABLE=1` | pass everything through unchanged |
 | `TOKTRIM_RAW_LOG_DIR` | where full-output logs go |
 | `TOKTRIM_HOOK_DEBUG=1` | explain why the hook stayed silent |
+| `TOKTRIM_NO_LEDGER=1` | do not record runs in the savings ledger |
+| `TOKTRIM_STATE_DIR` | where the ledger lives |
 
 Stats are off by default on purpose: Claude Code forwards the Bash tool's stderr
 to the model, so unconditional telemetry would cost the tokens it claims to save.
@@ -200,12 +234,23 @@ to the model, so unconditional telemetry would cost the tokens it claims to save
    error/fail/panic/exception/traceback/`FAILED`/`ERR!`/stack-frame patterns is
    kept verbatim, with three lines of context on each side. Compiler
    diagnostics, which name their own file and code, are kept without context.
-3. **There is always a way back.** Whenever anything is removed, the raw output
+3. **A failure block is kept whole.** A mocha numbered failure, a jest `●`, a
+   traceback, an `AssertionError` or a TAP `not ok` opens a *block*, and every
+   line is kept until it closes — however long the assertion diff is. If a
+   single block ever exceeds 500 lines it is cut with a marker at the point of
+   the cut. Nothing inside a failure is ever dropped silently; a test asserts
+   this across every fixture, and another asserts it still catches the v0.2.0
+   output that violated it.
+4. **There is always a way back.** Whenever anything is removed, the raw output
    is written to a temp file and the filtered output ends with
    `[toktrim] N lines elided — full output: <path>`.
-4. **Small output is untouched.** Output at or below 40 lines and 2 KB comes out
+5. **Small output is untouched.** Output at or below 40 lines and 2 KB comes out
    byte-for-byte identical, including CRLF line endings and ANSI codes.
-5. **Nothing is buffered whole.** Output is filtered line by line as it arrives,
+6. **Filtering never makes the output bigger.** While the output still fits in
+   the 1 MiB decision window, toktrim holds both forms and emits whichever is
+   smaller, footer included. If the raw form wins, the log is deleted too —
+   there is nothing to recover when nothing was removed.
+7. **Nothing is buffered whole.** Output is filtered line by line as it arrives,
    so a command killed by Claude Code's two-minute Bash timeout still shows
    everything it printed. `SIGINT`/`SIGTERM` flush what was processed and are
    relayed to the child.
@@ -234,6 +279,22 @@ to the model, so unconditional telemetry would cost the tokens it claims to save
 - **The generic fallback reorders nothing but does interleave markers.** When
   failures are rescued from the middle of long output, they appear between
   `[toktrim] ...` markers in their original order, not in place.
+- **Cross-gap repeats are summarised at the end, not in place.** A line
+  suppressed because the same shape appeared earlier is counted into one
+  `[toktrim] ×N further similar lines: …` marker printed after the output.
+  There is no single point in the stream where that marker would belong.
+- **Shape matching only applies to log-shaped lines.** A line is matched by
+  shape — numbers, ids, hashes and quoted values blanked — only when it starts
+  with a level like `info:`/`warn:`, a `DEPRECATION WARNING`, or an npm/pnpm/
+  yarn log prefix. Everything else must match byte for byte, because
+  `[  7/400] CC module_007.o` and `Suite7 Controller` differ from their
+  neighbours only in a digit and that digit is the content.
+- **`toktrim pipe` cannot tell a query from a build.** Classification needs the
+  command line, which `pipe` does not have, so piped output gets the generic
+  chain including truncation. Use `toktrim run --` to get the query protection.
+- **Beyond 1 MiB, the never-grow guarantee is best effort.** Past the decision
+  window toktrim has already streamed what it produced and cannot retract it.
+  At that size markers cannot plausibly outweigh what was removed.
 - **`docker`/`dotnet` fixtures are transcripts, not captures.** Neither tool was
   installed on the machine the fixtures were recorded on; both files record
   their provenance.

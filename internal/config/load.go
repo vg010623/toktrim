@@ -112,6 +112,10 @@ func (c *Config) apply(values map[string]string) error {
 			}
 		case "raw_log_dir":
 			c.RawLogDir = raw
+		case "raw_log_max_age_days":
+			if err := setInt(&c.RawLogMaxAgeDays, raw, key); err != nil {
+				return err
+			}
 		case "enabled":
 			b, err := strconv.ParseBool(raw)
 			if err != nil {

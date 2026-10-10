@@ -10,9 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 
 	"github.com/vg010623/toktrim/internal/config"
 	"github.com/vg010623/toktrim/internal/filter"
+	"github.com/vg010623/toktrim/internal/ledger"
 	"github.com/vg010623/toktrim/internal/pipeline"
 	"github.com/vg010623/toktrim/internal/tokenizer"
 )
@@ -87,8 +89,24 @@ func Run(args []string, cfg *config.Config) int {
 		}
 	}
 
+	code := exitCodeOf(waitErr)
+	record(proc, strings.Join(args, " "), code)
 	reportStats(proc)
-	return exitCodeOf(waitErr)
+	return code
+}
+
+// record appends one line to the savings ledger. Failures are silent: a
+// convenience must never interfere with the command the user ran.
+func record(proc *pipeline.Processor, command string, code int) {
+	s := proc.Stats()
+	ledger.Append(ledger.Entry{
+		Command:  command,
+		Filters:  s.Filters,
+		RawBytes: s.BytesIn,
+		OutBytes: s.BytesOut,
+		ExitCode: code,
+		RawLog:   s.RawLog,
+	})
 }
 
 // exitCodeOf maps the error from Cmd.Wait onto a process exit code.
@@ -128,6 +146,7 @@ func ProcessStdin(cfg *config.Config) int {
 	}
 	proc.Close()
 	stdout.Flush()
+	record(proc, "pipe", 0)
 	reportStats(proc)
 	return 0
 }
