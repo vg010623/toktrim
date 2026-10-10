@@ -15,6 +15,7 @@ const (
 	KindNodeScript  Kind = "node-script"
 	KindDocker      Kind = "docker-build"
 	KindDotNet      Kind = "dotnet"
+	KindQuery       Kind = "query"
 	KindGeneric     Kind = "generic"
 )
 
@@ -24,6 +25,11 @@ const (
 // (`bash -c "npm ci && npm test"`) the script itself is inspected, because that
 // is where the interesting command name is.
 func Classify(argv []string) Kind {
+	// A query is checked first: its output is the answer, so it must never be
+	// truncated no matter what else the command line looks like.
+	if IsQueryCommand(argv) {
+		return KindQuery
+	}
 	words := commandWords(argv)
 	// npm and friends are checked first: the subcommand decides whether this is
 	// an install or a script run.
@@ -143,7 +149,8 @@ func Chain(argv []string, cfg *config.Config) []LineFilter {
 	g.ContextBefore, g.ContextAfter = cfg.ContextBefore, cfg.ContextAfter
 	chain = append(chain, g)
 
-	switch Classify(argv) {
+	kind := Classify(argv)
+	switch kind {
 	case KindNodeInstall:
 		add("node-install", NewNodePackageManager())
 	case KindNodeScript:
@@ -155,11 +162,152 @@ func Chain(argv []string, cfg *config.Config) []LineFilter {
 		add("docker-build", NewDockerBuild())
 	case KindDotNet:
 		add("dotnet", NewDotNet())
+	case KindQuery:
+		// Nothing command-specific, and -- below -- no truncation.
 	}
 
 	d := NewDedup()
 	d.MinRun = cfg.MinRun
+	d.SimilarWindow = cfg.SimilarWindow
+	if kind == KindQuery {
+		// In a dependency tree or a config dump, the same line at a different
+		// position is still information. Only adjacent repeats go.
+		d.SimilarWindow = 0
+	}
 	add("dedup", d)
-	add("truncate", NewTruncate(cfg.HeadLines, cfg.TailLines))
+
+	// Truncation is positional: it drops lines for where they are rather than
+	// what they say. That is the right trade for a build log and the wrong one
+	// for a query, whose middle is exactly what was being looked up.
+	if kind != KindQuery {
+		add("truncate", NewTruncate(cfg.HeadLines, cfg.TailLines))
+	}
 	return chain
+}
+
+// queryCommands are commands whose output *is* the answer to a question.
+//
+// Truncating them defeats the purpose: `npm ls --all` is run to look a package
+// up, and the middle of the tree is where most packages live. These get the
+// cheap, lossless filters -- escape stripping, carriage returns, dedup -- and
+// never positional truncation.
+var queryCommands = map[string]bool{
+	"cat": true, "jq": true, "head": true, "tail": true, "awk": true,
+	"gh": true, "glow": true, "bat": true, "yq": true, "column": true,
+	"env": true, "printenv": true, "pwd": true, "which": true, "whereis": true,
+	"date": true, "hostname": true, "uname": true, "id": true, "whoami": true,
+}
+
+// queryNodeSubcommands are the package-manager subcommands that answer a
+// question rather than doing work.
+var queryNodeSubcommands = map[string]bool{
+	"ls": true, "list": true, "outdated": true, "view": true, "info": true,
+	"why": true, "explain": true, "search": true, "show": true, "config": true,
+	"bin": true, "root": true, "prefix": true, "licenses": true, "audit": true,
+}
+
+// pipelineSinks end a pipeline by selecting or counting, which means the
+// author has already decided how much output they want.
+var pipelineSinks = map[string]bool{
+	"head": true, "tail": true, "grep": true, "wc": true, "jq": true,
+	"rg": true, "sort": true, "uniq": true, "cut": true, "column": true,
+}
+
+// IsQuerySegment reports whether one command (already split into words) is a
+// query whose output must not be truncated.
+func IsQuerySegment(words []string) bool {
+	if len(words) == 0 {
+		return false
+	}
+	cmd := baseName(words[0])
+	if queryCommands[cmd] {
+		// `tail -f` is a follow, not a query.
+		for _, w := range words[1:] {
+			if w == "-f" || w == "--follow" || w == "-F" {
+				return false
+			}
+		}
+		return true
+	}
+	switch cmd {
+	case "npm", "pnpm", "yarn", "bun":
+		for _, w := range words[1:] {
+			if strings.HasPrefix(w, "-") {
+				continue
+			}
+			return queryNodeSubcommands[w]
+		}
+		return false
+	case "sed":
+		// `sed -n ...` prints selected lines; a plain sed transforms a stream.
+		for _, w := range words[1:] {
+			if w == "-n" || w == "--quiet" || w == "--silent" {
+				return true
+			}
+		}
+		return false
+	case "git":
+		// `git config --list`, `git remote -v`: short, and the answer itself.
+		for _, w := range words[1:] {
+			if strings.HasPrefix(w, "-") {
+				continue
+			}
+			return w == "config" || w == "remote" || w == "rev-parse" || w == "describe"
+		}
+		return false
+	}
+	return false
+}
+
+// IsPipelineSink reports whether a command ends a pipeline by selecting or
+// counting its input.
+func IsPipelineSink(words []string) bool {
+	if len(words) == 0 {
+		return false
+	}
+	return pipelineSinks[baseName(words[0])]
+}
+
+// IsQueryCommand reports whether argv is a query command.
+func IsQueryCommand(argv []string) bool {
+	if len(argv) == 0 {
+		return false
+	}
+	// Follow into a shell -c script, and treat a pipeline by its last stage.
+	for _, seg := range shellSegments(argv) {
+		if IsQuerySegment(seg) || IsPipelineSink(seg) {
+			return true
+		}
+	}
+	return false
+}
+
+// shellSegments returns the command segments argv will run, following into a
+// `sh -c` script when there is one.
+func shellSegments(argv []string) [][]string {
+	for i, a := range argv {
+		switch baseName(a) {
+		case "bash", "sh", "zsh", "dash":
+			if i+2 < len(argv) && argv[i+1] == "-c" {
+				var out [][]string
+				for _, seg := range splitShellSegments(argv[i+2]) {
+					out = append(out, strings.Fields(seg))
+				}
+				return out
+			}
+		}
+	}
+	return [][]string{argv}
+}
+
+// splitShellSegments breaks a script on the operators that separate commands.
+func splitShellSegments(script string) []string {
+	repl := strings.NewReplacer("&&", "\n", "||", "\n", "|", "\n", ";", "\n")
+	var out []string
+	for _, s := range strings.Split(repl.Replace(script), "\n") {
+		if t := strings.TrimSpace(s); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }

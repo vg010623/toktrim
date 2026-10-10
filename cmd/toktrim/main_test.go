@@ -34,11 +34,23 @@ func buildToktrim(t *testing.T) string {
 	return bin
 }
 
+// testEnv isolates a run of the built binary from the developer's real state:
+// no ledger entries, and raw logs in a directory the test owns.
+func testEnv(t *testing.T) []string {
+	t.Helper()
+	return []string{
+		"TOKTRIM_STATS=",
+		"TOKTRIM_NO_LEDGER=1",
+		"TOKTRIM_STATE_DIR=" + t.TempDir(),
+		"TOKTRIM_RAW_LOG_DIR=" + t.TempDir(),
+	}
+}
+
 // runToktrim invokes the built binary and returns stdout and the exit code.
 func runToktrim(t *testing.T, bin string, args ...string) (string, int) {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
-	cmd.Env = append(os.Environ(), "TOKTRIM_STATS=")
+	cmd.Env = append(os.Environ(), testEnv(t)...)
 	var stdout strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = os.Stderr
@@ -155,10 +167,45 @@ func TestAcceptance_WorksWithoutNetwork(t *testing.T) {
 	}
 }
 
-// runHook pipes a PreToolUse payload through the built binary's hook subcommand.
+// fakeRTKDir returns a directory containing an executable named rtk, so that a
+// test can decide whether the hook sees rtk as installed instead of inheriting
+// whatever the machine happens to have. The first CI run for v0.3 failed
+// precisely because the runners have no rtk while the developer machine does.
+func fakeRTKDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	name := filepath.Join(dir, "rtk")
+	body := "#!/bin/sh\nexit 0\n"
+	if runtime.GOOS == "windows" {
+		name += ".bat"
+		body = "@echo off\r\nexit /b 0\r\n"
+	}
+	if err := os.WriteFile(name, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// runHook pipes a PreToolUse payload through the built binary's hook
+// subcommand, with rtk present or absent on PATH as asked.
 func runHook(t *testing.T, bin, payload string) string {
 	t.Helper()
+	return runHookWithRTK(t, bin, payload, true)
+}
+
+func runHookWithRTK(t *testing.T, bin, payload string, withRTK bool) string {
+	t.Helper()
 	cmd := exec.Command(bin, "hook")
+	cmd.Env = append(os.Environ(), testEnv(t)...)
+	path := os.Getenv("PATH")
+	if withRTK {
+		path = fakeRTKDir(t) + string(os.PathListSeparator) + path
+	} else {
+		// Keep the shell tools the hook itself does not need, but make sure
+		// no real rtk is reachable.
+		path = t.TempDir()
+	}
+	cmd.Env = append(cmd.Env, "PATH="+path)
 	cmd.Stdin = strings.NewReader(payload)
 	var out strings.Builder
 	cmd.Stdout = &out
@@ -170,11 +217,18 @@ func runHook(t *testing.T, bin, payload string) string {
 }
 
 // Acceptance tests 8, 9 and 10, through the real binary.
+//
+// AT8 is asserted with rtk on PATH, because that is the condition the original
+// test describes ("rtk's territory"). The companion case below covers what v0.3
+// item 5 asks for when rtk is missing.
 func TestAcceptance_HookThroughBinary(t *testing.T) {
 	bin := buildToktrim(t)
 
-	if got := runHook(t, bin, `{"tool_input":{"command":"git status"}}`); got != "" {
-		t.Errorf("AT8: git status should print nothing, got %q", got)
+	if got := runHookWithRTK(t, bin, `{"tool_input":{"command":"git status"}}`, true); got != "" {
+		t.Errorf("AT8: with rtk installed, git status should print nothing, got %q", got)
+	}
+	if got := runHookWithRTK(t, bin, `{"tool_input":{"command":"git status"}}`, false); got == "" {
+		t.Error("without rtk, git status should be wrapped so that something filters it")
 	}
 
 	got := runHook(t, bin, `{"tool_input":{"command":"npm run build"}}`)
@@ -226,7 +280,9 @@ func TestAcceptance_HookWrappedCommandRunsIdentically(t *testing.T) {
 	direct, errDirect := exec.Command("bash", "-c", script).CombinedOutput()
 
 	wrappedCmd := exec.Command("bash", "-c", wrapped)
-	wrappedCmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	wrappedCmd.Env = append(os.Environ(), testEnv(t)...)
+	wrappedCmd.Env = append(wrappedCmd.Env,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	viaHook, errHook := wrappedCmd.CombinedOutput()
 
 	if (errDirect == nil) != (errHook == nil) {

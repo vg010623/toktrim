@@ -25,10 +25,89 @@ func TestMeasuredSavings(t *testing.T) {
 			// Acceptance test 3: an npm install on a medium project must shrink
 			// by 60% or more.
 			dir:           "npm-install",
-			minByteSaving: 0.60,
+			minByteSaving: 0.95,
 			mustKeep: []string{
 				"added 720 packages",
 				"18 vulnerabilities",
+			},
+		},
+		{
+			// The v0.3 bug: every diff line of every failure must survive, and
+			// each block must be byte-for-byte what mocha printed.
+			dir:           "mocha-multi-fail",
+			minByteSaving: 0.85,
+			mustKeep: []string{
+				`-  "total": 118`, // the actual value, dropped by v0.2.0
+				`+  "total": 120`, // the expected value
+				`"field_1_1": 1`, `"field_6_6": 6`,
+				"AssertionError: expected { Object (rows, total) }",
+				"at Context.<anonymous> (test/ctrl1.test.js:10:14)",
+				"at Context.<anonymous> (test/ctrl6.test.js:60:14)",
+				"6 failing",
+			},
+		},
+		{
+			// The same output with mocha's older ✓ glyph.
+			dir:           "mocha-multi-fail-oldglyph",
+			minByteSaving: 0.85,
+			mustKeep:      []string{`-  "total": 118`, `+  "total": 120`, "6 failing"},
+		},
+		{
+			// An all-passing mocha run: the ✔ glyph is recognised, passing
+			// tests collapse to a count, and every suite name survives.
+			dir:           "mocha-pass",
+			minByteSaving: 0.70,
+			mustKeep: []string{
+				"96 passing (4s)",
+				"Suite1 Controller", "Suite7 Controller", "Suite12 Controller",
+				"dropped 96 passing-test lines",
+			},
+		},
+		{
+			// node:test TAP: the failing diagnostic survives whole.
+			dir:           "node-test-tap",
+			minByteSaving: 0.50,
+			mustKeep: []string{
+				"not ok 25 - returns correct totals",
+				"Expected values to be strictly deep-equal:",
+				"+ { rows: 4, total: 118 }",
+				"- { rows: 4, total: 120 }",
+				"location: 'test/totals.test.js:18:1'",
+				"TestContext.<anonymous> (test/totals.test.js:19:3)",
+				"# fail 1",
+			},
+		},
+		{
+			// Interleaved application logs: noise collapses by shape, the
+			// error and its stack do not.
+			dir:           "node-app-logs",
+			minByteSaving: 0.80,
+			mustKeep: []string{
+				"Error: ECONNREFUSED connecting to redis://cache:6379",
+				"at TCPConnectWrap.afterConnect (node:net:1605:16)",
+				"at Socket.emit (node:events:519:28)",
+				"warn: [cache] redis miss rate above threshold",
+				"info: [boot] listening on 0.0.0.0:8080",
+			},
+		},
+		{
+			// A query's output is the answer: nothing is truncated, and the
+			// packages that only appear in the middle third are all present.
+			dir:           "npm-ls-large",
+			minByteSaving: 0.0,
+			mustKeep: []string{
+				"math-intrinsics@", "axobject-query@", "shebang-regex@", "terminal-link@",
+				"dayjs@", "ag-grid-react@", "big.js@",
+			},
+		},
+		{
+			// Every line is an error, so there is nothing to drop and the
+			// output must come back byte-for-byte rather than gain markers.
+			dir:           "eslint-all-errors",
+			minByteSaving: 0.0,
+			mustKeep: []string{
+				"96 problems (96 errors, 0 warnings)",
+				"potentially fixable with the `--fix` option",
 			},
 		},
 		{
@@ -58,7 +137,6 @@ func TestMeasuredSavings(t *testing.T) {
 				"src/db/pool.ts(7,10): error TS2551",
 				"Found 3 errors in 3 files.",
 				`ERROR: failed to solve: process "/bin/sh -c npm run build"`,
-				// A successful step still reports that it was collapsed.
 				"#8 [4/6] RUN npm ci",
 			},
 		},
@@ -66,23 +144,18 @@ func TestMeasuredSavings(t *testing.T) {
 			dir:           "dotnet-build-error",
 			minByteSaving: 0.0,
 			mustKeep: []string{
-				"warning CS0168",
-				"warning CS4014",
-				"error CS1503",
-				"error CS1002",
-				"Build FAILED.",
-				"2 Error(s)",
+				"warning CS0168", "warning CS4014",
+				"error CS1503", "error CS1002",
+				"Build FAILED.", "2 Error(s)",
 			},
 		},
 		{
 			dir:           "generic-truncate",
 			minByteSaving: 0.60,
 			mustKeep: []string{
-				// Failures buried in the middle must be rescued.
 				"src/parser/lexer.c:214:9: error: implicit declaration of function 'strdupp'",
 				"src/net/socket.c:88:5: error: too few arguments to function 'connect'",
 				"make: *** [Makefile:42: all] Error 1",
-				// Head and tail.
 				"[  1/400] CC   build/obj/module_001.o",
 				"[400/400] CC   build/obj/module_400.o",
 			},
@@ -93,7 +166,6 @@ func TestMeasuredSavings(t *testing.T) {
 			mustKeep: []string{
 				"error[E0308]: mismatched types",
 				"could not compile `app`",
-				// The final state of the progress bar, not the intermediates.
 				"42/42",
 			},
 		},

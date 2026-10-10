@@ -1,0 +1,221 @@
+> backend@1.0.0 test
+> mocha --recursive test/
+
+  Suite1 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 1 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 1 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 1 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 1 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 1 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 1 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 1 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 1 (8ms)
+
+  Suite2 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 2 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 2 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 2 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 2 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 2 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 2 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 2 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 2 (8ms)
+
+  Suite3 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 3 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 3 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 3 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 3 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 3 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 3 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 3 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 3 (8ms)
+
+  Suite4 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 4 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 4 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 4 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 4 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 4 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 4 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 4 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 4 (8ms)
+
+  Suite5 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 5 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 5 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 5 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 5 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 5 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 5 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 5 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 5 (8ms)
+
+  Suite6 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 6 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 6 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 6 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 6 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 6 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 6 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 6 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 6 (8ms)
+
+  Suite7 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 7 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 7 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 7 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 7 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 7 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 7 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 7 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 7 (8ms)
+
+  Suite8 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 8 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 8 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 8 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 8 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 8 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 8 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 8 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 8 (8ms)
+
+  Suite9 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 9 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 9 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 9 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 9 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 9 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 9 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 9 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 9 (8ms)
+
+  Suite10 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 10 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 10 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 10 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 10 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 10 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 10 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 10 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 10 (8ms)
+
+  Suite11 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 11 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 11 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 11 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 11 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 11 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 11 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 11 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 11 (8ms)
+
+  Suite12 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+    ✔ should handle case 1 for suite 12 (1ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":2}
+    ✔ should handle case 2 for suite 12 (2ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":3}
+    ✔ should handle case 3 for suite 12 (3ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":4}
+    ✔ should handle case 4 for suite 12 (4ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":5}
+    ✔ should handle case 5 for suite 12 (5ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":6}
+    ✔ should handle case 6 for suite 12 (6ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":7}
+    ✔ should handle case 7 for suite 12 (7ms)
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":8}
+    ✔ should handle case 8 for suite 12 (8ms)
+
+  96 passing (4s)
+

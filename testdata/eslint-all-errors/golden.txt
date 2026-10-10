@@ -1,0 +1,125 @@
+
+/home/dev/project/src/components/Widget1.tsx
+  7:4  error  Unexpected console statement.  no-console
+  14:7  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  21:10  error  React Hook useEffect has a missing dependency: 'res'.  react-hooks/exhaustive-deps
+  28:13  error  'acc' is assigned a value but never used.  no-unused-vars
+  35:16  error  Expected '===' and instead saw '=='.  eqeqeq
+  42:19  error  Unexpected console statement.  no-console
+  49:22  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  56:25  error  React Hook useEffect has a missing dependency: 'prev'.  react-hooks/exhaustive-deps
+
+/home/dev/project/src/components/Widget2.tsx
+  7:4  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  14:7  error  React Hook useEffect has a missing dependency: 'idx'.  react-hooks/exhaustive-deps
+  21:10  error  'res' is assigned a value but never used.  no-unused-vars
+  28:13  error  Expected '===' and instead saw '=='.  eqeqeq
+  35:16  error  Unexpected console statement.  no-console
+  42:19  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  49:22  error  React Hook useEffect has a missing dependency: 'ref'.  react-hooks/exhaustive-deps
+  56:25  error  'prev' is assigned a value but never used.  no-unused-vars
+
+/home/dev/project/src/components/Widget3.tsx
+  7:4  error  React Hook useEffect has a missing dependency: 'tmp'.  react-hooks/exhaustive-deps
+  14:7  error  'idx' is assigned a value but never used.  no-unused-vars
+  21:10  error  Expected '===' and instead saw '=='.  eqeqeq
+  28:13  error  Unexpected console statement.  no-console
+  35:16  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  42:19  error  React Hook useEffect has a missing dependency: 'val'.  react-hooks/exhaustive-deps
+  49:22  error  'ref' is assigned a value but never used.  no-unused-vars
+  56:25  error  Expected '===' and instead saw '=='.  eqeqeq
+
+/home/dev/project/src/components/Widget4.tsx
+  7:4  error  'tmp' is assigned a value but never used.  no-unused-vars
+  14:7  error  Expected '===' and instead saw '=='.  eqeqeq
+  21:10  error  Unexpected console statement.  no-console
+  28:13  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  35:16  error  React Hook useEffect has a missing dependency: 'ctx'.  react-hooks/exhaustive-deps
+  42:19  error  'val' is assigned a value but never used.  no-unused-vars
+  49:22  error  Expected '===' and instead saw '=='.  eqeqeq
+  56:25  error  Unexpected console statement.  no-console
+
+/home/dev/project/src/components/Widget5.tsx
+  7:4  error  Expected '===' and instead saw '=='.  eqeqeq
+  14:7  error  Unexpected console statement.  no-console
+  21:10  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  28:13  error  React Hook useEffect has a missing dependency: 'acc'.  react-hooks/exhaustive-deps
+  35:16  error  'ctx' is assigned a value but never used.  no-unused-vars
+  42:19  error  Expected '===' and instead saw '=='.  eqeqeq
+  49:22  error  Unexpected console statement.  no-console
+  56:25  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+/home/dev/project/src/components/Widget6.tsx
+  7:4  error  Unexpected console statement.  no-console
+  14:7  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  21:10  error  React Hook useEffect has a missing dependency: 'res'.  react-hooks/exhaustive-deps
+  28:13  error  'acc' is assigned a value but never used.  no-unused-vars
+  35:16  error  Expected '===' and instead saw '=='.  eqeqeq
+  42:19  error  Unexpected console statement.  no-console
+  49:22  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  56:25  error  React Hook useEffect has a missing dependency: 'prev'.  react-hooks/exhaustive-deps
+
+/home/dev/project/src/components/Widget7.tsx
+  7:4  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  14:7  error  React Hook useEffect has a missing dependency: 'idx'.  react-hooks/exhaustive-deps
+  21:10  error  'res' is assigned a value but never used.  no-unused-vars
+  28:13  error  Expected '===' and instead saw '=='.  eqeqeq
+  35:16  error  Unexpected console statement.  no-console
+  42:19  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  49:22  error  React Hook useEffect has a missing dependency: 'ref'.  react-hooks/exhaustive-deps
+  56:25  error  'prev' is assigned a value but never used.  no-unused-vars
+
+/home/dev/project/src/components/Widget8.tsx
+  7:4  error  React Hook useEffect has a missing dependency: 'tmp'.  react-hooks/exhaustive-deps
+  14:7  error  'idx' is assigned a value but never used.  no-unused-vars
+  21:10  error  Expected '===' and instead saw '=='.  eqeqeq
+  28:13  error  Unexpected console statement.  no-console
+  35:16  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  42:19  error  React Hook useEffect has a missing dependency: 'val'.  react-hooks/exhaustive-deps
+  49:22  error  'ref' is assigned a value but never used.  no-unused-vars
+  56:25  error  Expected '===' and instead saw '=='.  eqeqeq
+
+/home/dev/project/src/components/Widget9.tsx
+  7:4  error  'tmp' is assigned a value but never used.  no-unused-vars
+  14:7  error  Expected '===' and instead saw '=='.  eqeqeq
+  21:10  error  Unexpected console statement.  no-console
+  28:13  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  35:16  error  React Hook useEffect has a missing dependency: 'ctx'.  react-hooks/exhaustive-deps
+  42:19  error  'val' is assigned a value but never used.  no-unused-vars
+  49:22  error  Expected '===' and instead saw '=='.  eqeqeq
+  56:25  error  Unexpected console statement.  no-console
+
+/home/dev/project/src/components/Widget10.tsx
+  7:4  error  Expected '===' and instead saw '=='.  eqeqeq
+  14:7  error  Unexpected console statement.  no-console
+  21:10  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  28:13  error  React Hook useEffect has a missing dependency: 'acc'.  react-hooks/exhaustive-deps
+  35:16  error  'ctx' is assigned a value but never used.  no-unused-vars
+  42:19  error  Expected '===' and instead saw '=='.  eqeqeq
+  49:22  error  Unexpected console statement.  no-console
+  56:25  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+/home/dev/project/src/components/Widget11.tsx
+  7:4  error  Unexpected console statement.  no-console
+  14:7  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  21:10  error  React Hook useEffect has a missing dependency: 'res'.  react-hooks/exhaustive-deps
+  28:13  error  'acc' is assigned a value but never used.  no-unused-vars
+  35:16  error  Expected '===' and instead saw '=='.  eqeqeq
+  42:19  error  Unexpected console statement.  no-console
+  49:22  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  56:25  error  React Hook useEffect has a missing dependency: 'prev'.  react-hooks/exhaustive-deps
+
+/home/dev/project/src/components/Widget12.tsx
+  7:4  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  14:7  error  React Hook useEffect has a missing dependency: 'idx'.  react-hooks/exhaustive-deps
+  21:10  error  'res' is assigned a value but never used.  no-unused-vars
+  28:13  error  Expected '===' and instead saw '=='.  eqeqeq
+  35:16  error  Unexpected console statement.  no-console
+  42:19  error  Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+  49:22  error  React Hook useEffect has a missing dependency: 'ref'.  react-hooks/exhaustive-deps
+  56:25  error  'prev' is assigned a value but never used.  no-unused-vars
+
+✖ 96 problems (96 errors, 0 warnings)
+
+  12 errors and 0 warnings potentially fixable with the `--fix` option.
+

@@ -1,0 +1,154 @@
+> api@2.1.0 start
+> node dist/server.js
+
+info: [boot] configuration loaded from /etc/api/config.json
+info: [boot] connected to postgres://db:5432/app
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":42}
+info: [http] GET /api/v1/work-orders 200 {"ms":24,"bytes":6768}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":84}
+info: [http] GET /api/v1/work-orders 200 {"ms":11,"bytes":1486}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":69}
+info: [http] GET /api/v1/work-orders 200 {"ms":17,"bytes":6291}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":75}
+info: [http] GET /api/v1/work-orders 200 {"ms":12,"bytes":8613}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":28}
+info: [http] GET /api/v1/work-orders 200 {"ms":9,"bytes":1708}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":56}
+info: [http] GET /api/v1/work-orders 200 {"ms":58,"bytes":1444}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":31}
+info: [http] GET /api/v1/work-orders 200 {"ms":16,"bytes":7255}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":8}
+info: [http] GET /api/v1/work-orders 200 {"ms":110,"bytes":2328}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":29}
+info: [http] GET /api/v1/work-orders 200 {"ms":85,"bytes":1313}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":74}
+info: [http] GET /api/v1/work-orders 200 {"ms":79,"bytes":6799}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":7}
+info: [http] GET /api/v1/work-orders 200 {"ms":33,"bytes":1063}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":72}
+info: [http] GET /api/v1/work-orders 200 {"ms":114,"bytes":2481}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":38}
+info: [http] GET /api/v1/work-orders 200 {"ms":58,"bytes":2663}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":70}
+info: [http] GET /api/v1/work-orders 200 {"ms":20,"bytes":5354}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":72}
+info: [http] GET /api/v1/work-orders 200 {"ms":109,"bytes":3261}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":14}
+info: [http] GET /api/v1/work-orders 200 {"ms":79,"bytes":3378}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":48}
+info: [http] GET /api/v1/work-orders 200 {"ms":17,"bytes":1328}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":73}
+info: [http] GET /api/v1/work-orders 200 {"ms":12,"bytes":3674}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":64}
+info: [http] GET /api/v1/work-orders 200 {"ms":92,"bytes":7305}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":41}
+info: [http] GET /api/v1/work-orders 200 {"ms":64,"bytes":7724}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":47}
+info: [http] GET /api/v1/work-orders 200 {"ms":43,"bytes":4370}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":24}
+info: [http] GET /api/v1/work-orders 200 {"ms":94,"bytes":4299}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":11}
+info: [http] GET /api/v1/work-orders 200 {"ms":78,"bytes":5219}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":68}
+info: [http] GET /api/v1/work-orders 200 {"ms":68,"bytes":5927}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":58}
+info: [http] GET /api/v1/work-orders 200 {"ms":41,"bytes":1499}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":16}
+info: [http] GET /api/v1/work-orders 200 {"ms":70,"bytes":7150}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":22}
+info: [http] GET /api/v1/work-orders 200 {"ms":101,"bytes":5904}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":20}
+info: [http] GET /api/v1/work-orders 200 {"ms":67,"bytes":7209}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":6}
+info: [http] GET /api/v1/work-orders 200 {"ms":90,"bytes":1571}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":72}
+info: [http] GET /api/v1/work-orders 200 {"ms":78,"bytes":5440}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":44}
+info: [http] GET /api/v1/work-orders 200 {"ms":93,"bytes":6037}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":77}
+info: [http] GET /api/v1/work-orders 200 {"ms":68,"bytes":7774}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":9}
+info: [http] GET /api/v1/work-orders 200 {"ms":112,"bytes":1833}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":35}
+info: [http] GET /api/v1/work-orders 200 {"ms":65,"bytes":1364}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":8}
+info: [http] GET /api/v1/work-orders 200 {"ms":98,"bytes":5372}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":83}
+info: [http] GET /api/v1/work-orders 200 {"ms":78,"bytes":7601}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":37}
+info: [http] GET /api/v1/work-orders 200 {"ms":96,"bytes":6620}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":86}
+info: [http] GET /api/v1/work-orders 200 {"ms":49,"bytes":669}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":60}
+info: [http] GET /api/v1/work-orders 200 {"ms":50,"bytes":3053}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":79}
+info: [http] GET /api/v1/work-orders 200 {"ms":19,"bytes":8388}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":8}
+info: [http] GET /api/v1/work-orders 200 {"ms":32,"bytes":5009}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":17}
+info: [http] GET /api/v1/work-orders 200 {"ms":99,"bytes":4356}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":51}
+info: [http] GET /api/v1/work-orders 200 {"ms":55,"bytes":8434}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":11}
+info: [http] GET /api/v1/work-orders 200 {"ms":26,"bytes":7659}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":52}
+info: [http] GET /api/v1/work-orders 200 {"ms":75,"bytes":4852}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":18}
+info: [http] GET /api/v1/work-orders 200 {"ms":109,"bytes":7353}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":71}
+info: [http] GET /api/v1/work-orders 200 {"ms":40,"bytes":7104}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":46}
+info: [http] GET /api/v1/work-orders 200 {"ms":92,"bytes":6533}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":30}
+info: [http] GET /api/v1/work-orders 200 {"ms":24,"bytes":1659}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":23}
+info: [http] GET /api/v1/work-orders 200 {"ms":24,"bytes":4100}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":85}
+info: [http] GET /api/v1/work-orders 200 {"ms":34,"bytes":497}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":63}
+info: [http] GET /api/v1/work-orders 200 {"ms":111,"bytes":3287}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":34}
+info: [http] GET /api/v1/work-orders 200 {"ms":41,"bytes":367}
+info: [db] SELECT * FROM work_orders WHERE org_id = 45 LIMIT 50 {"ms":19}
+info: [http] GET /api/v1/work-orders 200 {"ms":58,"bytes":6349}
+info: [db] SELECT * FROM work_orders WHERE org_id = 46 LIMIT 50 {"ms":79}
+info: [http] GET /api/v1/work-orders 200 {"ms":77,"bytes":5520}
+info: [db] SELECT * FROM work_orders WHERE org_id = 40 LIMIT 50 {"ms":17}
+info: [http] GET /api/v1/work-orders 200 {"ms":93,"bytes":8745}
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":80}
+info: [http] GET /api/v1/work-orders 200 {"ms":88,"bytes":1184}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":59}
+info: [http] GET /api/v1/work-orders 200 {"ms":120,"bytes":6728}
+info: [db] SELECT * FROM work_orders WHERE org_id = 43 LIMIT 50 {"ms":51}
+info: [http] GET /api/v1/work-orders 200 {"ms":56,"bytes":6757}
+info: [db] SELECT * FROM work_orders WHERE org_id = 44 LIMIT 50 {"ms":14}
+info: [http] GET /api/v1/work-orders 200 {"ms":66,"bytes":6860}
+warn: [cache] redis miss rate above threshold {"rate":0.41}
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part1.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part2.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part3.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part4.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part5.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part6.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part7.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part8.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part9.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part10.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part11.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part12.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part13.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part14.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part15.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part16.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part17.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part18.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part19.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part20.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part21.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part22.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part23.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part24.scss)
+info: [boot] listening on 0.0.0.0:8080
+Error: ECONNREFUSED connecting to redis://cache:6379
+    at TCPConnectWrap.afterConnect (node:net:1605:16)
+    at Socket.emit (node:events:519:28)

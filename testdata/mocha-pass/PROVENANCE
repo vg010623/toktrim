@@ -1,0 +1,4 @@
+Generated: an all-passing mocha run using the ✔ glyph (mocha v8+ default), with
+the same interleaved db log lines as the failing fixture. Pins two things: that
+✔ output is recognised as a test run at all, and that passing tests collapse to
+a single count rather than being listed.

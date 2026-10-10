@@ -1,0 +1,28 @@
+> backend@1.0.0 test
+> node --test
+
+TAP version 13
+  ---
+  duration_ms: 9.600000
+  ...
+not ok 25 - returns correct totals
+  ---
+  duration_ms: 1.882000
+  location: 'test/totals.test.js:18:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+    + { rows: 4, total: 118 }
+    - { rows: 4, total: 120 }
+  code: 'ERR_ASSERTION'
+  stack: |-
+    TestContext.<anonymous> (test/totals.test.js:19:3)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+  ...
+1..25
+# tests 25
+# pass 24
+# fail 1
+[toktrim] dropped 24 passing-test lines

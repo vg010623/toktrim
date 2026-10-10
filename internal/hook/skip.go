@@ -2,33 +2,34 @@
 package hook
 
 import (
+	"os/exec"
 	"strings"
+	"sync"
+
+	"github.com/vg010623/toktrim/internal/filter"
 )
 
-// rtkAllowlist is the set of commands rtk already compresses.
+// rtkAllowlist is the set of commands rtk compresses.
 //
-// toktrim is a fallback, not a competitor: wrapping a command rtk handles would
-// mean two PreToolUse hooks rewriting the same tool input, and Claude Code
-// resolves that by taking whichever hook finished last -- a race. Leaving
-// rtk's commands alone is what keeps the two tools composable.
+// toktrim defers to rtk for these, but only when rtk is actually installed.
+// Skipping them unconditionally meant that on a machine without rtk nothing
+// filtered them at all.
 var rtkAllowlist = map[string]bool{
 	"cargo": true, "pytest": true, "jest": true, "vitest": true,
 	"tsc": true, "eslint": true, "ls": true, "grep": true, "find": true,
 }
 
-// rtkGitSubcommands are the git subcommands rtk covers. Other git subcommands
-// (commit, push, rebase) are left to toktrim.
+// rtkGitSubcommands are the git subcommands rtk covers. Others (commit, push,
+// rebase) are left to toktrim.
 var rtkGitSubcommands = map[string]bool{
 	"status": true, "log": true, "diff": true, "show": true,
 }
 
 // longRunning marks commands that stream for minutes or expect a terminal.
-// Wrapping them would either hang behind toktrim's buffering or break the
-// interactive session.
 var longRunning = map[string]bool{
 	"dev": true, "start": true, "watch": true, "serve": true,
 	"develop": true, "preview": true, "repl": true, "console": true,
-	"attach": true, "exec": true, "logs": true, "tail": true,
+	"attach": true, "logs": true, "tail": true,
 }
 
 // longRunningFlags are flags that mean the same thing.
@@ -38,18 +39,56 @@ var longRunningFlags = map[string]bool{
 	"--follow": true, "-f": true,
 }
 
+// binaryRunners hand the rest of the command line to another program, so the
+// interesting command name is the next word rather than the first.
+//
+// Without this, `npx jest` was wrapped while bare `jest` was skipped -- the
+// same command treated two different ways depending on how it was spelled.
+var binaryRunners = map[string]bool{
+	"npx": true, "bunx": true, "pnpx": true,
+}
+
 // Decision explains what the hook chose to do and why.
 type Decision struct {
 	Wrap   bool
 	Reason string
 }
 
+// Classifier decides whether toktrim should wrap a command.
+type Classifier struct {
+	// RTKAvailable reports whether rtk is on PATH. When it is not, toktrim
+	// handles the commands it would otherwise leave to rtk.
+	RTKAvailable bool
+}
+
+var (
+	defaultOnce       sync.Once
+	defaultClassifier *Classifier
+)
+
+// rtkOnPath reports whether rtk is installed, looked up once per process.
+func rtkOnPath() bool {
+	_, err := exec.LookPath("rtk")
+	return err == nil
+}
+
+// Default returns the classifier used by the hook, created once.
+func Default() *Classifier {
+	defaultOnce.Do(func() {
+		defaultClassifier = &Classifier{RTKAvailable: rtkOnPath()}
+	})
+	return defaultClassifier
+}
+
+// Classify decides whether toktrim should wrap a Bash command, using the
+// process-wide classifier.
+func Classify(command string) Decision { return Default().Classify(command) }
+
 // Classify decides whether toktrim should wrap a Bash command.
 //
-// The default is to leave a command alone: a command toktrim wraps needlessly
-// costs the user a rewritten permission prompt, so anything uncertain is
-// skipped.
-func Classify(command string) Decision {
+// The default is to leave a command alone: a command wrapped needlessly costs
+// the user a rewritten permission prompt, so anything uncertain is skipped.
+func (c *Classifier) Classify(command string) Decision {
 	trimmed := strings.TrimSpace(command)
 	if trimmed == "" {
 		return Decision{false, "empty command"}
@@ -70,9 +109,15 @@ func Classify(command string) Decision {
 		return Decision{false, "output already redirected to a file"}
 	}
 
+	// A pipeline ending in head, tail, grep, wc or jq has already had its
+	// output chosen by whoever wrote it.
+	if last := splitWords(segments[len(segments)-1]); filter.IsPipelineSink(normalizeRunner(last)) && len(segments) > 1 {
+		return Decision{false, "pipeline already selects its output"}
+	}
+
 	allRTK := true
 	for _, seg := range segments {
-		words := splitWords(seg)
+		words := normalizeRunner(splitWords(seg))
 		if len(words) == 0 {
 			continue
 		}
@@ -82,19 +127,69 @@ func Classify(command string) Decision {
 		if isInteractiveDockerRun(words) {
 			return Decision{false, "docker run without --rm"}
 		}
-		if !coveredByRTK(words) {
+		if filter.IsQuerySegment(words) {
+			return Decision{false, "query command: its output is the answer"}
+		}
+		if !c.coveredByRTK(words) {
 			allRTK = false
 		}
 	}
-	if allRTK {
+	if allRTK && c.RTKAvailable {
 		return Decision{false, "covered by rtk's allowlist"}
 	}
 
+	if allRTK {
+		return Decision{true, "rtk is not installed, so toktrim handles it"}
+	}
 	return Decision{true, "not covered by rtk"}
 }
 
+// normalizeRunner strips a binary runner prefix so that `npx jest` is judged
+// as `jest`.
+func normalizeRunner(words []string) []string {
+	for len(words) > 1 {
+		switch base(words[0]) {
+		case "npx", "bunx", "pnpx":
+			words = words[1:]
+			continue
+		case "pnpm", "yarn", "bun":
+			// `pnpm exec X`, `yarn dlx X`: the runner form.
+			if len(words) > 2 && (words[1] == "exec" || words[1] == "dlx" || words[1] == "run") {
+				// `run` names a package script, which is not a bare binary.
+				if words[1] == "run" {
+					return words
+				}
+				words = words[2:]
+				continue
+			}
+			// `yarn jest` runs the binary, but `yarn build` runs a script, so
+			// only a recognised tool name is unwrapped.
+			if len(words) > 1 && isKnownTool(base(words[1])) {
+				words = words[1:]
+				continue
+			}
+			return words
+		}
+		return words
+	}
+	return words
+}
+
+// isKnownTool reports whether a name is a tool whose output toktrim or rtk
+// recognises, which is what makes unwrapping `yarn <tool>` safe.
+func isKnownTool(name string) bool {
+	if rtkAllowlist[name] {
+		return true
+	}
+	switch name {
+	case "mocha", "ava", "tap", "nyc", "c8", "prettier", "biome", "tsx", "esbuild", "vite", "webpack":
+		return true
+	}
+	return false
+}
+
 // coveredByRTK reports whether rtk already compresses this segment.
-func coveredByRTK(words []string) bool {
+func (c *Classifier) coveredByRTK(words []string) bool {
 	cmd := base(words[0])
 	if cmd == "git" {
 		for _, w := range words[1:] {
@@ -143,7 +238,6 @@ func isLongRunning(words []string) bool {
 }
 
 // isInteractiveDockerRun reports whether this is `docker run` without --rm.
-// A run without --rm leaves a container behind and is usually a service.
 func isInteractiveDockerRun(words []string) bool {
 	cmd := base(words[0])
 	if cmd != "docker" && cmd != "podman" {
@@ -173,7 +267,6 @@ func redirectsAllOutput(command string) bool {
 	if strings.Contains(command, "&>") || strings.Contains(command, ">&") {
 		return true
 	}
-	// "> file 2>&1" sends both streams to the file.
 	return strings.Contains(command, ">") && strings.Contains(command, "2>&1")
 }
 
@@ -204,7 +297,6 @@ func splitSegments(command string) []string {
 			quote = r
 			cur.WriteRune(r)
 		case r == ';' || r == '|' || r == '&':
-			// Consume a doubled operator as one separator.
 			if i+1 < len(runes) && runes[i+1] == r {
 				i++
 			}
@@ -217,8 +309,8 @@ func splitSegments(command string) []string {
 	return segments
 }
 
-// splitWords splits a segment into words, dropping environment assignments that
-// precede the command name.
+// splitWords splits a segment into words, dropping environment assignments
+// that precede the command name.
 func splitWords(segment string) []string {
 	fields := strings.Fields(segment)
 	for len(fields) > 0 && isEnvAssignment(fields[0]) {

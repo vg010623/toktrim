@@ -1,0 +1,20 @@
+> api@2.1.0 start
+> node dist/server.js
+
+info: [boot] configuration loaded from /etc/api/config.json
+info: [boot] connected to postgres://db:5432/app
+info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":42}
+info: [http] GET /api/v1/work-orders 200 {"ms":24,"bytes":6768}
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":84}
+info: [http] GET /api/v1/work-orders 200 {"ms":11,"bytes":1486}
+warn: [cache] redis miss rate above threshold {"rate":0.41}
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part1.scss)
+[toktrim] ×22 similar lines collapsed
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part23.scss)
+DEPRECATION WARNING [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0 (src/styles/_part24.scss)
+info: [boot] listening on 0.0.0.0:8080
+Error: ECONNREFUSED connecting to redis://cache:6379
+    at TCPConnectWrap.afterConnect (node:net:1605:16)
+    at Socket.emit (node:events:519:28)
+[toktrim] ×58 further similar lines: info: [db] SELECT * FROM work_orders WHERE org_id = 41 LIMIT 50 {"ms":…
+[toktrim] ×58 further similar lines: info: [http] GET /api/v1/work-orders 200 {"ms":24,"bytes":6768}

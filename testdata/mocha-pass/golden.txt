@@ -1,0 +1,54 @@
+> backend@1.0.0 test
+> mocha --recursive test/
+
+  Suite1 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite2 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite3 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite4 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite5 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite6 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite7 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite8 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite9 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite10 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite11 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  Suite12 Controller
+info: [db] SELECT * FROM work_orders WHERE org_id = 42 LIMIT 50 {"ms":1}
+[toktrim] ×8 similar lines collapsed
+
+  96 passing (4s)
+
+[toktrim] dropped 96 passing-test lines

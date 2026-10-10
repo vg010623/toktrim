@@ -106,8 +106,16 @@ func (c *Config) apply(values map[string]string) error {
 			if err := setInt(&c.MinRun, raw, key); err != nil {
 				return err
 			}
+		case "similar_window", "dedup.similar_window":
+			if err := setInt(&c.SimilarWindow, raw, key); err != nil {
+				return err
+			}
 		case "raw_log_dir":
 			c.RawLogDir = raw
+		case "raw_log_max_age_days":
+			if err := setInt(&c.RawLogMaxAgeDays, raw, key); err != nil {
+				return err
+			}
 		case "enabled":
 			b, err := strconv.ParseBool(raw)
 			if err != nil {

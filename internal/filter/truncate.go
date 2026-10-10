@@ -85,7 +85,7 @@ func (t *Truncate) Flush(emit Emit) {
 		firstTail = t.tail[0].idx
 	}
 
-	// Middle failure lines that fell out of the tail window, in order.
+	// Failure lines that fell out of the tail window, in order.
 	var middle []idxLine
 	for _, h := range t.held {
 		if firstTail < 0 || h.idx < firstTail {
@@ -93,23 +93,33 @@ func (t *Truncate) Flush(emit Emit) {
 		}
 	}
 
-	if len(middle) > 0 {
-		// The count can be zero when everything evicted was itself protected,
-		// so only state a number when there is one to state.
-		marker := "[toktrim] ... output elided; failures from the middle follow ..."
-		if t.skipped > 0 {
-			marker = fmt.Sprintf("[toktrim] ... %d %s elided; failures from the middle follow ...",
-				t.skipped, plural(t.skipped, "line"))
+	// Nothing was actually dropped: every line evicted from the tail window
+	// was protected and is in middle, so the two together reconstruct the
+	// stream. Emitting markers here would make the output *larger* than the
+	// input while telling the reader something was removed when it was not.
+	if t.skipped == 0 {
+		for _, m := range middle {
+			emit(m.line)
 		}
-		emit(Line{Text: marker})
+		for _, e := range t.tail {
+			emit(e.line)
+		}
+		t.tail, t.held = nil, nil
+		return
+	}
+
+	if len(middle) > 0 {
+		emit(Line{Text: fmt.Sprintf("[toktrim] ... %d %s elided; failures from the middle follow ...",
+			t.skipped, plural(t.skipped, "line"))})
 		for _, m := range middle {
 			emit(m.line)
 		}
 		if t.heldFull {
 			emit(Line{Text: "[toktrim] ... more failure lines elided; see the full output log ..."})
 		}
-		emit(Line{Text: fmt.Sprintf("[toktrim] ... resuming at the last %d %s ...", len(t.tail), plural(len(t.tail), "line"))})
-	} else if t.skipped > 0 {
+		emit(Line{Text: fmt.Sprintf("[toktrim] ... resuming at the last %d %s ...",
+			len(t.tail), plural(len(t.tail), "line"))})
+	} else {
 		emit(Line{Text: fmt.Sprintf("[toktrim] ... %d %s elided ...", t.skipped, plural(t.skipped, "line"))})
 	}
 

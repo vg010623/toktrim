@@ -1,0 +1,4 @@
+Output captured from the released v0.2.0 darwin_arm64 binary run over
+input.txt, kept so that TestInvariantCatchesTheV020Bug can prove the gap
+invariant actually detects the bug it was written for. Not a golden file: it is
+a record of broken output.
