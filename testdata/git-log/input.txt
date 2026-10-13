@@ -1,0 +1,777 @@
+commit 4fd52c0e2ac60bfe643704ed3f15144b4de6f835
+Author: dev <dev@example.com>
+Date:   2026-10-10 19:50:48 +0530
+
+    docs: make the rtk setup copy-pasteable, and fix three stale README claims
+    
+    The "Running alongside rtk" section described the two sane setups but left the
+    reader to work out the JSON. It now shows both: a one-line diff for replacing
+    rtk's hook, and the full settings.json plus the defer_to_rtk line for running
+    both. It also says plainly that the one combination to avoid is adding the
+    second hook *without* defer_to_rtk, and that one-at-a-time is the setup to use
+    when evaluating toktrim, since with both hooks running you cannot tell which
+    tool produced any given output.
+    
+    Three claims in the v0.3.1 README were still describing v0.3.0 behaviour. The
+    replacements for them silently failed to apply in that commit because the text
+    I matched against differed in line wrapping, and nothing checked:
+    
+    - the opening still called toktrim "a fallback output filter ... meant to sit
+      alongside rtk", when it is standalone;
+    - a known limitation still said what the hook skips "depends on whether rtk is
+      installed";
+    - another still explained the race as the reason "toktrim skips everything rtk
+      handles", which is no longer how it works.
+    
+    Two bugs in the hook debugging examples, both of which would have misled anyone
+    following them:
+    
+    - `git status` was annotated "(nothing — rtk's territory)". Standalone, it is
+      wrapped.
+    - `TOKTRIM_HOOK_DEBUG=1 echo '...' | toktrim hook` sets the variable on echo,
+      not on toktrim, so it printed nothing and looked broken. The variable now goes
+      on toktrim, with a note about why.
+    
+    Every example in the hook section was run against the built binary and produces
+    exactly what is documented. Checked too: all JSON snippets parse, code fences
+    balance, internal anchors resolve, and no stale claim from v0.2 or v0.3.0
+    survives.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 0e5b7f6fb501b06c1b7223a4fccf93051ecc0003
+Merge: 860d1e2 b0a26a6
+Author: dev <dev@example.com>
+Date:   2026-10-10 19:39:01 +0530
+
+    Merge pull request #5 from dev/fix/v0.3.1-standalone-by-default
+    
+    v0.3.1: standalone by default, not rtk-dependent
+
+commit b0a26a669a79c7f414906911cbba9c0c7a21cf30
+Author: dev <dev@example.com>
+Date:   2026-10-10 19:34:33 +0530
+
+    fix: make toktrim standalone by default instead of rtk-dependent
+    
+    The hook deferred to rtk whenever the rtk *binary* was on PATH. That was wrong
+    on two counts, and it made toktrim unusable as a tool in its own right.
+    
+    Wrong signal. Binary presence says nothing about whether rtk's hook is running.
+    Someone who kept rtk installed but disabled its hook got the worst of both:
+    toktrim stood down on git, jest and cargo, and rtk was not there to take them,
+    so nothing filtered them at all.
+    
+    Wrong default. The deference came from the v0.2 issue framing toktrim as "a
+    fallback filter for commands rtk doesn't handle", and the skip list was built
+    from that issue's description of rtk's coverage. Measured against rtk 0.44.2,
+    that description is well out of date: rtk claims about seventy commands,
+    including npm run, docker, dotnet, go and make. Six of twenty common commands
+    were claimed by both hooks, and since both answer with updatedInput and Claude
+    Code takes whichever finishes last, which tool filtered a command was
+    non-deterministic.
+    
+    toktrim does not need rtk. Its own test-runner filter already covers jest,
+    vitest, mocha, node:test, pytest, go test and cargo. So the default is now
+    standalone: toktrim handles everything it understands, and its remaining skip
+    rules -- long-running or interactive commands, queries, redirects,
+    self-selecting pipelines -- are its own judgement rather than a map of another
+    tool.
+    
+    Deference is opt-in, via defer_to_rtk in toktrim.toml or
+    TOKTRIM_DEFER_TO_RTK=1, for people who run both hooks. When on, toktrim asks
+    rtk's own hook whether it claims the command instead of consulting a copy of
+    its allowlist. That is accurate for whatever rtk is installed, answers the
+    question that actually matters, and costs about 10 ms. A chain is deferred only
+    when rtk claims every segment, because rtk will not rewrite a mixed chain and
+    deferring would leave it unfiltered. Any failure to ask means toktrim handles
+    the command: deference must never be the reason nothing filters it.
+    
+    Acceptance test 8 is now asserted in the condition it describes -- deference on,
+    rtk claiming the command -- with a companion test pinning the standalone
+    default. rtk's answer is stubbed in tests rather than invoked, so they do not
+    change meaning when rtk is upgraded.
+    
+    README gains a "Running alongside rtk" section explaining the race and the two
+    sane configurations, and no longer describes toktrim as a fallback.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 860d1e25499fca48612219c73720a6d84755ef8e
+Merge: 59d39bd fb4325f
+Author: dev <dev@example.com>
+Date:   2026-10-10 18:33:44 +0530
+
+    Merge pull request #4 from dev/feat/v0.3.0-failure-blocks
+    
+    v0.3: fix information loss on test runs, widen coverage
+
+commit fb4325ffeae374c94d951c4e7c4a7e8855a6f2d5
+Author: dev <dev@example.com>
+Date:   2026-10-10 18:30:01 +0530
+
+    test: cover the failure-block rules directly
+    
+    Three cases the fixtures exercise only indirectly:
+    
+    - a mocha-shaped block whose diff body sits at the same indentation as the
+      AssertionError above it, asserting every diff line is both kept and marked
+      as failure detail, that the summary closes the block rather than being
+      swallowed, and that context reaches exactly three lines back;
+    - a block past MaxBlockLines, asserting the marker is emitted and lands at the
+      point of the cut rather than at the end of the output;
+    - a compiler diagnostic with indented detail followed by unrelated build lines
+      at the original indentation, asserting the block ends at the dedent instead
+      of swallowing the rest of the output.
+    
+    The first draft of the context assertion was wrong rather than the code: it
+    called a line one row above the failure 'two lines above' and expected it to be
+    unprotected, when a three-line context window is supposed to cover it.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 681f17b90b387c4eca83f4beadad2a7792bc5a99
+Author: dev <dev@example.com>
+Date:   2026-10-10 18:28:54 +0530
+
+    test: pin rtk presence instead of inheriting it from the machine
+    
+    CI failed on both runners with "AT8: git status should print nothing", and the
+    failure was real rather than flaky.
+    
+    Acceptance test 8 and v0.3 item 5 pull in opposite directions. AT8 says
+    `git status` must print nothing because it is rtk's territory; item 5 says that
+    when rtk is *not* installed toktrim should handle those commands, since
+    otherwise nothing filters them. Both cannot hold on the same machine, and which
+    one applies depends on whether rtk is on PATH. The GitHub runners have no rtk;
+    the machine this was developed on does, which is why the suite passed locally
+    and failed in CI.
+    
+    The tests now pin the condition instead of inheriting it. hook.RunWith takes an
+    explicit Classifier so the unit tests choose whether rtk counts as present, and
+    the binary-level tests put a fake rtk on PATH for the with-rtk case and an empty
+    PATH for the without. Both behaviours are asserted, so neither requirement is
+    quietly dropped:
+    
+      with rtk     git status -> skipped   (acceptance test 8)
+      without rtk  git status -> wrapped   (v0.3 item 5)
+    
+    Verified by running the suite with rtk removed from PATH, which reproduces the
+    CI environment. The README's known limitations now state plainly that what the
+    hook skips depends on whether rtk is installed, and that the same command can
+    be wrapped on one machine and skipped on another.
+    
+    Also adds the exhaustive mocha assertions the spec asks for: every +/- diff
+    line, counted, and every file:line reference must survive, rather than a
+    sample. A spot check of the expected value alone would have passed v0.2.0,
+    which kept 6 of 6 `+  "total": 120` lines and 3 of 6 `-  "total": 118` lines.
+    A companion check confirms the exhaustive version does report the captured
+    v0.2.0 output as broken.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 3b96d88a708c209dc11d3fe4f35b9e6c95f18bd9
+Author: dev <dev@example.com>
+Date:   2026-10-10 18:22:20 +0530
+
+    feat: record what each run saved, and add toktrim stats
+    
+    Item 7 of the v0.3 spec, plus the documentation and floors the acceptance
+    criteria ask for.
+    
+    Every `run` and `pipe` appends one JSON object to the ledger: timestamp,
+    command (first 80 bytes, cut on a rune boundary), the filters that actually
+    fired, raw bytes, output bytes, exit code and the raw log path if one was kept.
+    It lives in $XDG_STATE_HOME/toktrim or ~/.local/state/toktrim on Unix and
+    %LOCALAPPDATA%\toktrim on Windows, overridable with TOKTRIM_STATE_DIR and
+    switchable off with TOKTRIM_NO_LEDGER=1.
+    
+    Every write is best effort and silent. A ledger is a convenience and must never
+    be the reason a command behaves differently, so a missing directory, an
+    unwritable file and a marshalling error are all swallowed. Each entry is written
+    in one syscall so that concurrent toktrim runs append whole lines rather than
+    interleaving halves, and Read skips a malformed line rather than failing, since
+    a half-written line should not hide the rest.
+    
+    `toktrim stats [--since 7d]` reports totals, the token estimate (bytes/4,
+    labelled as an estimate) and the top commands by bytes saved. Runs are grouped
+    by command, looking *through* a shell wrapper: the hook wraps everything as
+    `bash -c '<original>'`, so without that every row would read "bash" and the
+    report would say nothing. `--since` takes 7d, 2w, 12h or 30m, and a bare `7d`
+    works as shorthand.
+    
+    Stats also prunes raw logs older than raw_log_max_age_days (7 by default,
+    configurable, 0 to disable). The runs that create those logs never clean them
+    up -- deleting one would defeat the footer that names it -- and stats is the
+    command someone runs when they are thinking about them anyway.
+    
+    Found while wiring this up: the test suite was writing real ledger entries into
+    the developer's own ~/.local/state/toktrim, because the acceptance tests invoke
+    the built binary. Every such invocation now gets TOKTRIM_NO_LEDGER=1 and
+    test-owned state and raw-log directories, and a check confirms the suite leaves
+    the real path untouched.
+    
+    Documentation and floors:
+    
+    - TestMeasuredSavings now covers all thirteen fixtures, with the floors raised
+      to what the code actually achieves and per-fixture assertions naming the
+      strings that must survive -- including `-  "total": 118`, the line v0.2.0
+      dropped.
+    - README: the measured table gains rows for all six new fixtures; the three 0%
+      rows are explained rather than hidden, since each is a deliberate outcome.
+      "What it deliberately skips" documents queries, self-selecting pipelines and
+      the rtk-only-when-installed rule. Two new guarantees are stated (a failure
+      block is kept whole; filtering never grows the output) and five new known
+      limitations, including that `toktrim pipe` cannot tell a query from a build
+      because classification needs the command line.
+    - toktrim.example.toml documents similar_window and raw_log_max_age_days.
+    
+    Still no dependencies, still builds with GOPROXY=off, and all five release
+    targets cross-compile.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit cb6ca18b714edc9cae55b9fe4fc112f24da97cfb
+Author: dev <dev@example.com>
+Date:   2026-10-09 00:41:27 +0530
+
+    fix: never emit more output than came in
+    
+    Item 6 of the v0.3 spec. On eslint output where every line is an error,
+    v0.2.0's output was 2.89% larger than its input: nothing could be dropped, so
+    the only thing the filters contributed was markers.
+    
+    Two fixes, at different levels.
+    
+    The direct cause was in Truncate. When every line evicted from the tail window
+    was protected, it still printed "... output elided; failures from the middle
+    follow ..." and "... resuming at the last N lines ...", even though it had
+    dropped nothing -- claiming information had been removed when none had, and
+    growing the output to say so. With skipped == 0 it now emits the held lines and
+    the tail with no markers at all, which reconstructs the stream exactly. That
+    alone takes the eslint fixture from +2.89% to +0.00%.
+    
+    The general guarantee is in the Processor. While the output still fits in the
+    decision window (1 MiB) it holds both the raw bytes and the chain's output, and
+    at Close emits whichever is smaller -- footer included in the comparison. If the
+    raw form wins, the log is deleted too: there is nothing to recover when nothing
+    was removed. Past the window toktrim commits to the filtered form and streams
+    it, since a command producing megabytes is not one where markers could outweigh
+    what was removed, and holding more would risk losing buffered output if toktrim
+    itself were killed.
+    
+    Adding the window surfaced a bug in its own right, now covered by a test: the
+    bytes buffered before the passthrough thresholds were crossed were fed to the
+    filter chain but never written to the raw log, so the log was missing the start
+    of the output. The log and the chain now advance off a single offset, which is
+    what makes it impossible for them to disagree.
+    
+    Measured across the fixtures, no output is larger than its input:
+      eslint-all-errors    8106 ->   8106  +0.00%
+      dotnet-build-error   1827 ->   1827  +0.00%
+      mocha-multi-fail    52301 ->   4684 -91.04%
+      npm-install        186289 ->   7124 -96.18%
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit c848802b88892b82e0cab9741a25b5caee8e0f9e
+Author: dev <dev@example.com>
+Date:   2026-10-09 00:32:38 +0530
+
+    feat: leave query commands alone, and only defer to rtk when rtk is installed
+    
+    Items 4 and 5 of the v0.3 spec.
+    
+    4. A query's output is the answer, so it is never truncated.
+    
+    `npm ls --all` on a five-dependency project is 3145 lines, and v0.2.0 cut it to
+    435 -- losing the middle third, which is where most of the tree lives. In the
+    captured fixture math-intrinsics, axobject-query, shebang-regex and
+    terminal-link all appear only between lines 1048 and 2096, and all four were
+    gone. Looking a package up is the entire reason to run the command.
+    
+    Both halves of the spec's suggestion are implemented, since they cover
+    different entry points. The hook now skips queries outright: npm/pnpm/yarn
+    ls/outdated/view/why/info/explain/search/audit, gh, cat, jq, head, non-follow
+    tail, `sed -n`, awk, `git config/remote/rev-parse/describe`, and any pipeline
+    whose last stage is head, tail, grep, wc, sort, uniq, cut or jq -- whoever wrote
+    that pipeline already chose how much output they wanted. And `toktrim run` run
+    by hand on a query gets a chain with no truncation filter, so the protection
+    holds even when the hook is not involved.
+    
+    Dedup's cross-gap window is also switched off for queries. In a dependency tree
+    or a config dump the same line at a different position is still information; it
+    was quietly removing 349 lines from the npm ls fixture. With that off, the
+    fixture now passes through byte-identical, which is the honest answer: there is
+    nothing in a dependency tree that can be dropped safely.
+    
+    5. rtk's allowlist only applies when rtk is on PATH.
+    
+    jest, vitest, pytest, tsc, eslint, cargo, go test and git status/log/diff/show
+    were skipped unconditionally, so on a machine without rtk nothing filtered them
+    at all -- even though toktrim's own test-runner filter already understands jest,
+    pytest, go test and cargo. The hook now looks rtk up once per process and only
+    defers when it is really there.
+    
+    Binary runners are normalised before the skip list is consulted, which fixes
+    the inconsistency where `npx jest` was wrapped while bare `jest` was skipped.
+    npx, bunx, pnpx, `pnpm exec` and `yarn dlx` are unwrapped unconditionally.
+    `yarn <x>` is unwrapped only when x is a recognised tool, because `yarn jest`
+    runs a binary while `yarn build` runs a package script, and `npm run x` is
+    never unwrapped for the same reason.
+    
+    Tests cover both rtk states, including one that writes a fake rtk into a
+    temporary PATH to exercise the lookup itself rather than the injected flag.
+    Verified against the built binary: with rtk present, `jest`, `npx jest` and
+    `tsc` are skipped; with PATH stripped, all three are wrapped, while queries,
+    long-running commands and self-selecting pipelines stay skipped either way.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 62c9c0a6916a2f4a4abd75af7f6ccdbaf2e6e70b
+Author: dev <dev@example.com>
+Date:   2026-10-09 00:27:03 +0530
+
+    fix: keep failure blocks whole, detect mocha/TAP, collapse near-identical noise
+    
+    Items 1-3 of the v0.3 spec.
+    
+    1. Failure blocks were being partially dropped (the reported bug).
+    
+    A mocha run of 400 passing tests and 6 failures fell through to the generic
+    truncate filter. Inside the rescued failures, `+  "total": 120` survived and
+    `-  "total": 118` did not, along with the six `field_*` lines, and no marker was
+    left behind -- so the diff read as complete while saying something false.
+    
+    The cause was that a failure was only ever protected by a fixed ±3-line context
+    window. `+  "total": 120` happened to fall inside the window of the
+    `at Context.<anonymous>` frame below it; `-  "total": 118` was one line further
+    out. A context window is simply the wrong tool here: an assertion diff is as
+    long as it needs to be, and keeping its edges while dropping its middle is the
+    worst available outcome.
+    
+    Guard now understands failure *blocks*. A line that opens one -- a mocha
+    numbered failure, a jest ●, a traceback, an AssertionError, a TAP `not ok` --
+    puts it into block mode, where every line is protected until the block closes
+    on a sibling header, a summary line, or a dedent. Deciding continuation needs
+    both indentation and shape, because mocha prints `+ expected - actual` and the
+    diff body at the same indentation as the AssertionError above it. A block over
+    DefaultMaxBlockLines (500) is cut with a marker at the point of the cut; nothing
+    inside a failure is ever dropped silently.
+    
+    All six blocks in the fixture now come out byte-for-byte identical.
+    
+    2. mocha, node:test and TAP are now detected.
+    
+    jsTestMarker only matched jest and vitest, so mocha never reached the test
+    filter. Added `N passing/failing/pending`, `ok N`, `not ok N`, `# tests N` and
+    `TAP version N`, and taught testPassLine and testBlockEnd the ✔ glyph that
+    mocha has defaulted to since v8 -- only ✓ and √ were there. Everything after
+    mocha's `N failing` line is treated as failure detail. A dropped TAP result also
+    takes its indented YAML diagnostic with it, which otherwise left orphaned
+    `---` / `duration_ms:` / `...` fragments behind.
+    
+    3. Dedup now collapses near-identical lines, carefully.
+    
+    Two rules: an adjacent run collapses to its first line plus a marker where the
+    run ended; a line repeating an earlier one across a gap is dropped once that
+    shape has already appeared a few times, totalled once at the end.
+    
+    Both compare by *shape* -- numbers, ids, hashes, timestamps and quoted values
+    blanked -- but only for lines that announce themselves as logging. That
+    restriction is not cosmetic. Blanket shape matching collapsed `unique line 0`
+    through `unique line 49` into one line in an existing test, and would have done
+    the same to `[  1/400] CC module_001.o`: there the number *is* the content.
+    Restricting it to log-shaped lines gets the compression without that risk, and
+    a test now pins both halves.
+    
+    The cross-gap rule exists because an application log alternates shapes -- db
+    line, http line, db line -- so its repeats are never adjacent and the run rule
+    alone never fires. Runs of blank lines also collapse to one, since dropping
+    interleaved content otherwise leaves a stack of separators.
+    
+    New invariant tests over every fixture: every failure line in the input reaches
+    the output in order; no line inside a failure block is missing without a marker
+    at that position; and no fixture's output is larger than its input.
+    TestInvariantCatchesTheV020Bug runs the gap invariant against output captured
+    from the released v0.2.0 binary and asserts it still reports the three
+    truncated blocks, so the invariant cannot quietly become a tautology -- the
+    first two versions of that test passed only because they called the production
+    block detector, or because another layer happened to protect the blocks.
+    
+    Measured on the fixtures:
+      mocha-multi-fail   967 -> 152 lines, all 6 blocks byte-identical
+      node-test-tap      120 ->  28 lines, failing diagnostic intact
+      mocha-pass         221 ->  54 lines, all 12 suite names kept
+      node-app-logs      154 ->  20 lines, 11761 -> 1311 bytes (88.8%)
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 59d39bd0bac6bb94a53d45c957c3783091187657
+Merge: d086ab8 8ac80ed
+Author: dev <dev@example.com>
+Date:   2026-09-30 00:11:27 +0530
+
+    Merge pull request #3 from dev/feat/rtk-fallback-filter
+    
+    toktrim as an rtk fallback filter: phases 0-4
+
+commit 8ac80ed3c6bf8da3e5cdafabbc9ce18570eafca2
+Author: dev <dev@example.com>
+Date:   2026-09-30 00:09:37 +0530
+
+    test: make the runner tests portable, and guard against a nil config
+    
+    runner_test.go shelled out to `sh`, which is not on the default PATH on a
+    windows-latest runner outside Git Bash, so the test would have failed there as
+    soon as gofmt stopped failing first. It now prefers a shell when there is one,
+    falls back to cmd.exe on Windows, and skips if neither exists.
+    
+    Run and ProcessStdin now substitute the default config when passed nil. Neither
+    reached a dereference on the paths that could be called with nil today, but the
+    new command-not-found test does call Run(nil, nil), and a reordering would have
+    turned that into a panic.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 77d3bee2533799e30f68ed9d1329ea50daf3729c
+Author: dev <dev@example.com>
+Date:   2026-09-30 00:08:19 +0530
+
+    ci: force LF checkout so gofmt passes on windows-latest
+    
+    The Windows runner checks out with CRLF, so `gofmt -l` reported every Go file
+    as unformatted and the windows job failed before it ran a single test.
+    
+    testdata is exempted with -text: the fixtures are compared byte for byte and the
+    ANSI one contains deliberate ESC and CR bytes, so a checkout that normalised
+    line endings would corrupt the inputs and break the golden tests on Windows
+    specifically.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 7efd611045bc25ae955db038a76d06ef7d6c84d6
+Author: dev <dev@example.com>
+Date:   2026-09-30 00:06:45 +0530
+
+    docs: note that raw logs accumulate in the temp directory
+    
+    They are deliberately not deleted -- the footer names the path, so removing the
+    file would defeat the point -- but that is an operational detail a user should
+    not have to discover from a full disk.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 210db7c608d68a781c28afb0c35995c4e4b3c06d
+Author: dev <dev@example.com>
+Date:   2026-09-30 00:05:23 +0530
+
+    feat: add releases, CI on windows and linux, and a version command
+    
+    Phase 4 of the rtk-fallback spec.
+    
+    Distribution: a goreleaser config building linux, darwin and windows for amd64
+    and arm64 (windows/arm64 excluded), with sha256 checksums. Two archive sets, so
+    a Windows user can download toktrim_windows_amd64.exe directly rather than
+    unpacking something first, while the tar.gz/zip archives carry the licence,
+    readme and example config. Binaries are CGO_ENABLED=0 and -trimpath.
+    
+    `toktrim version` reports version, commit, build date, Go version and platform.
+    goreleaser injects them with -ldflags; a binary built by `go install` has none of
+    those, so version falls back to the module version and VCS stamps the toolchain
+    embeds rather than reporting "dev".
+    
+    CI on ubuntu-latest and windows-latest: go vet, gofmt, go build, go test -race,
+    the golden tests, the hook JSON tests and the acceptance tests each called out
+    separately, plus a check that the goldens are not stale. Two further jobs: one
+    asserting go.mod has no requirements and that the tree builds with GOPROXY=off,
+    since toktrim must work with the network disabled; one running goreleaser check
+    and a snapshot build that asserts the Windows .exe is among the release
+    artifacts. A release only publishes after its tests pass.
+    
+    Cross-compiling for the release found a bug that a macOS-only build could not:
+    syscall.SIGBREAK does not exist on Windows, so internal/runner did not compile
+    for the hook's main target. The Go runtime's console control handler maps both
+    CTRL_C_EVENT and CTRL_BREAK_EVENT onto SIGINT, so os.Interrupt is what a Ctrl-C
+    and a Ctrl-Break both arrive as; listening for it covers the spec's requirement.
+    This is exactly what the windows-latest CI job is for.
+    
+    TestMeasuredSavings pins the compression figures quoted in the README to the
+    recorded fixtures as floors, so a documentation claim cannot drift from what the
+    code does, and asserts per fixture which strings must survive. The old "70-95%"
+    claim is gone, replaced by measured numbers with the fixture that produced each.
+    One of them is 0%: a failing jest run is almost entirely failure information, so
+    toktrim leaves it alone. TestFixturesHaveProvenance keeps every fixture
+    accountable for where it came from.
+    
+    README rewritten: what toktrim does, what it deliberately skips and why,
+    install from Releases, the hook snippet, the full config reference, the five
+    guarantees, and seven known limitations -- including that two PreToolUse hooks
+    returning updatedInput for one command race, which is the real reason the skip
+    list matters when running alongside rtk.
+    
+    PROJECT_SUMMARY.md and BUILD_INSTRUCTIONS.md are removed. Both still advertised
+    tiktoken, the placeholder module path and the 70-95% figure; their useful
+    content (install, build, development, CI) is in the README.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit cb2d7d4b8c8e9b7e7894295277474fd464319ccd
+Author: dev <dev@example.com>
+Date:   2026-09-29 23:58:12 +0530
+
+    feat: add the Claude Code PreToolUse hook
+    
+    Phase 3 of the rtk-fallback spec.
+    
+    `toktrim hook` reads a PreToolUse payload from stdin and, for a Bash command it
+    wants to handle, prints hookSpecificOutput.updatedInput.command wrapping it as
+    
+        toktrim run -- bash -c '<original>'
+    
+    with each ' escaped as '\''. Going through bash keeps pipes, &&, redirects and
+    quoting working; only the final output is filtered. Otherwise it prints nothing
+    and exits 0.
+    
+    On permissionDecision, as the spec asked. The hook never returns one. Claude
+    Code's hooks reference documents exit 0 with no decision as "the hook has no
+    decision to report, so the tool call continues through the normal permission
+    flow", and lists permissionDecision and updatedInput as independent fields of
+    hookSpecificOutput. Returning updatedInput alone therefore rewrites the command
+    and leaves the permission prompt exactly where it was, which is the behaviour
+    we want: toktrim wraps arbitrary commands and must never be the reason one skips
+    the user's prompt. The docs' own example pairs updatedInput with "allow", but
+    nothing requires that pairing, and a test asserts the field is absent from every
+    reply. Documented in the README, including the caveat that the docs do not spell
+    out this exact combination.
+    
+    The same reference turned up something worth knowing for anyone running toktrim
+    next to rtk: when two PreToolUse hooks both return updatedInput for one tool
+    call, the one that finishes last wins, and hooks run in parallel. So the skip
+    list is not only about compression -- it is what stops the two hooks racing over
+    the same command. It is in the README as a known limitation.
+    
+    Left alone: anything starting with rtk or toktrim; everything rtk's allowlist
+    covers (git status/log/diff/show, cargo, go test, pytest, jest, vitest, tsc,
+    eslint, ls, grep, find); long-running or interactive commands (dev, start,
+    watch, serve, --watch, -it, tail -f, docker run without --rm); and commands
+    already sending all output to a file. Chains are handled, since rtk does not
+    rewrite them -- unless every segment is itself an rtk command.
+    
+    Two details worth noting: `go build` is wrapped although `go test` is not,
+    because rtk's allowlist covers only the latter, and the same applies to git
+    subcommands beyond status/log/diff/show. Leading VAR=value assignments are
+    skipped when finding the command name, so `NODE_ENV=production npm run dev` is
+    still recognised as long-running.
+    
+    Every error path is silent and lets the command through unchanged; the hook
+    returns 0 unconditionally. TOKTRIM_HOOK_DEBUG=1 explains why it stayed quiet.
+    
+    Acceptance tests 8, 9, 10 and 11 are automated, both against the package and
+    end to end through the built binary.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 405d3ac3c2b960bb70d8e6089fcde7f0cf72d038
+Author: dev <dev@example.com>
+Date:   2026-09-29 23:52:58 +0530
+
+    feat: add filters for the commands rtk skips
+    
+    Phase 2 of the rtk-fallback spec. Every filter has a recorded fixture under
+    testdata/ and a golden test (`go test ./internal/golden -update` regenerates).
+    
+    Filters, in chain order:
+    
+    - ansi: strips CSI/OSC escapes, reduces a line redrawn with \r to the text left
+      on screen, and collapses a run of progress readouts to the last one, so a
+      download bar becomes one line showing its final state.
+    - node-install: drops deprecation warnings, registry/arborist chatter and
+      funding notices; keeps ERR! blocks and the "added N packages" summary.
+    - test-runner: block aware. Once a failure block opens, every line is kept
+      until the next suite header, so a failing test's name, assertion and stack
+      frames survive even when they run past Guard's context window. For
+      `npm run <script>` it stays a pass-through until the output identifies itself
+      as jest or vitest, since a script may be anything.
+    - docker-build: buffers each BuildKit step until it reports a status, because
+      whether a step's output matters is only known once it finishes. A successful
+      step collapses to a count; a failing step is replayed in full.
+    - dotnet: collapses per-project restore and build lines; keeps diagnostics with
+      their codes and the build/test summary.
+    - dedup, then truncate: the generic backstop. Truncation keeps the first 30 and
+      last 60 lines plus any failure line in between, tracked by position so order
+      is preserved rather than reordered into a trailing block.
+    
+    Two fixes the fixtures forced out, neither of which unit tests had caught:
+    
+    - npm renamed "npm WARN" to "npm warn" in v11, so the case-sensitive patterns
+      matched nothing. All 17 deprecation warnings in the recorded install were
+      passing through.
+    - Package names are full of failure words -- error-ex, makeerror, es-errors,
+      json-parse-even-better-errors -- so every line of npm's registry chatter
+      looked like a failure, was protected, and dragged three lines of context in
+      with it. Failure detection now ignores tokens containing a URL scheme.
+      The recorded install went from 160 lines to 22.
+    
+    Guard also now separates "must keep" from "worth showing context for". A
+    compiler diagnostic names its own file, line and code, so surrounding it with
+    three lines of restore chatter added noise; a panic or traceback still gets its
+    neighbours.
+    
+    Measured on the recorded fixtures:
+      npm install      1871 -> 22 lines,  186289 -> 867 bytes   (99.5%)
+      docker build       84 -> 52 lines, failing step intact
+      dotnet build       23 -> 17 lines, all diagnostics intact
+      jest (failing)     45 -> 32 lines, every failure intact
+      make (400 lines)  406 -> 102 lines, middle failures rescued
+    
+    Config: toktrim.toml in the project root or ~/.config/toktrim/, with per-filter
+    switches and adjustable limits. Parsed by a small TOML-subset reader rather than
+    a dependency, keeping the module dependency-free; unknown keys and unsupported
+    value types are reported instead of ignored. A malformed config is never fatal.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 5a7960b5da819e08f6bef15e259fdf18cdf8c25a
+Author: dev <dev@example.com>
+Date:   2026-09-29 23:37:22 +0530
+
+    feat: stream output through a line pipeline instead of buffering it
+    
+    Phase 1 of the rtk-fallback spec.
+    
+    Output is now processed line by line as it arrives. Previously the whole
+    output was held in memory until the command exited, so anything killed by
+    Claude Code's two-minute Bash timeout produced nothing at all.
+    
+    Architecture:
+    
+    - filter.LineFilter replaces the old string-in/string-out Filter. The pipeline
+      pushes one Line at a time and the filter pushes zero or more lines onward.
+      Filters that need a whole block may buffer that block; none may buffer the
+      whole stream.
+    - filter.Guard runs at the head of every chain and marks lines carrying failure
+      information, plus three lines of context on each side, as Protected. No later
+      filter may drop or rewrite a protected line. Protecting context *before* a
+      failure means holding that many lines back, so Guard delays the stream by
+      three lines and never drops anything.
+    - pipeline.Processor is an io.Writer, so the runner copies the child's output
+      straight into it. It holds raw bytes until the output passes 40 lines or
+      2 KB; if the command ends first, those exact bytes are written out, so small
+      output is byte-for-byte identical. Past the threshold it starts filtering and
+      tees the raw stream to a temp file, and the filtered output ends with
+      "[toktrim] N lines elided — full output: <path>". If nothing was actually
+      trimmed the log is removed again and no footer is added.
+    - Dedup is now a streaming run-length encoder holding a single line back, so
+      memory does not grow with the length of a run.
+    
+    Signals: SIGINT/SIGTERM (and Ctrl-Break on Windows) are relayed to the child
+    and everything processed so far is flushed. Windows cannot deliver a signal to
+    another process, so the relay kills the child there, which is documented.
+    
+    Tests cover the guarantees rather than the implementation: small output is
+    identical for every chunk boundary from 1 byte upward, filter output does not
+    depend on how the stream was chunked, failure lines and stack frames survive
+    compression, and the raw log holds the complete output.
+    
+    Acceptance tests 1, 5, 6, 7 and 11 are automated in cmd/toktrim/main_test.go.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 3a9ac380362dafead6009a0d95863090e80c97e9
+Author: dev <dev@example.com>
+Date:   2026-09-29 23:30:09 +0530
+
+    fix: correct exit-code ordering, merge output streams, drop network dependency
+    
+    Phase 0 of the rtk-fallback spec: make the existing tool behave correctly
+    before building anything new on top of it.
+    
+    - Rename the module to github.com/dev/toktrim so that
+      `go install github.com/dev/toktrim/cmd/toktrim@latest` resolves.
+    - ExecuteCommand printed nothing for failing commands: os.Exit ran inside the
+      Cmd.Wait error branch, before the filtered output was written. Output (and
+      optional stats) is now written first and the child's exit code is propagated
+      afterwards. A command that cannot be started exits 127.
+    - Give the child a single os.Pipe for both stdout and stderr so the two stay
+      in the order the child wrote them, instead of concatenating two buffers
+      after the fact.
+    - Replace tiktoken-go with an offline chars/4 estimate. toktrim must work with
+      the network disabled, and tiktoken downloads its vocabulary from OpenAI on
+      first use. The dollar figure is gone; the count is labelled an estimate.
+    - Gate stats behind TOKTRIM_STATS=1. Claude Code forwards the Bash tool's
+      stderr to the model, so unconditional telemetry costs the tokens it claims
+      to save.
+    - Fix a trailing-newline bug shared by all three filters: splitting on "\n"
+      yields a final empty element that was emitted as a stray blank line, so
+      every filtered output gained a blank line. Add splitLines/joinLines.
+    - Add `run` as the primary subcommand name (`exec` stays as an alias).
+    - Drop the README's approver/validator hook snippet. Neither field exists in
+      Claude Code.
+    
+    The dedup and diff test expectations were self-contradictory (the dedup case
+    expected both a "[Repeated 3 times]" summary and the three original lines, so
+    no implementation could pass) and had been failing since they were added in
+    44ab9bb. They now assert the documented behaviour.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit d086ab87ca97e6794519f6c904aa31079062e525
+Author: dev <dev@example.com>
+Date:   2026-09-29 22:34:11 +0530
+
+    fix: handle command exit status correctly in ExecuteCommand
+
+commit 3f8ad4deee7d9a4248cafe6602256313abc9db8e
+Author: dev <dev@example.com>
+Date:   2026-09-28 23:02:49 +0530
+
+    refactor: improve command execution output handling with goroutines
+
+commit fc13d2952bf4b0720ecab870d4ca899bf2fc8a70
+Author: dev <dev@example.com>
+Date:   2026-09-25 02:02:41 +0530
+
+    docs: add build instructions and project summary
+
+commit 44ab9bb9c4ed8dcc4055a5afda6fda18932f30fe
+Author: dev <dev@example.com>
+Date:   2026-09-25 02:02:31 +0530
+
+    test: add unit tests for filters and tokenizer
+
+commit 2025bb9c62dfdefbc559b20ebee6b5d2e2e72f0c
+Author: dev <dev@example.com>
+Date:   2026-09-25 02:02:24 +0530
+
+    docs: add README and LICENSE
+
+commit 1dcfb960ce115cd499c690276da39e81b881871a
+Author: dev <dev@example.com>
+Date:   2026-09-25 02:02:00 +0530
+
+    feat: add CLI entry point (exec and pipe subcommands)
+
+commit a82a583636c67892031cd11754479881b437c95a
+Author: dev <dev@example.com>
+Date:   2026-09-25 02:00:44 +0530
+
+    feat: add runner to execute commands and apply filter pipeline
+
+commit 2c0e14cf4a47f262969f85f89cbac74571355605
+Author: dev <dev@example.com>
+Date:   2026-09-25 02:00:29 +0530
+
+    feat: add tokenizer wrapper for tiktoken-go
+
+commit 9c055f6a5986652340ed7222661837e391f24c89
+Author: dev <dev@example.com>
+Date:   2026-09-25 02:00:07 +0530
+
+    feat: add filter interface and core filters (testrunner, dedup, diff)
+
+commit ea7ee0b9d628abd4645cbb7911f31e7e1ac6f002
+Author: dev <dev@example.com>
+Date:   2026-09-25 01:59:58 +0530
+
+    chore: initialize go module and .gitignore

@@ -230,11 +230,15 @@ func runHookEnv(t *testing.T, bin, payload string, extra []string) string {
 func TestAcceptance_HookThroughBinary(t *testing.T) {
 	bin := buildToktrim(t)
 
-	if got := runHook(t, bin, `{"tool_input":{"command":"git status"}}`); got == "" {
-		t.Error("standalone, git status should be wrapped so that something filters it")
+	if got := runHook(t, bin, `{"tool_input":{"command":"jest --coverage"}}`); got == "" {
+		t.Error("standalone, jest should be wrapped so that something filters it")
 	}
-	if got := runHookDeferring(t, bin, `{"tool_input":{"command":"git status"}}`); got != "" {
-		t.Errorf("AT8: with TOKTRIM_DEFER_TO_RTK=1 and rtk present, git status should print nothing, got %q", got)
+	if got := runHookDeferring(t, bin, `{"tool_input":{"command":"jest --coverage"}}`); got != "" {
+		t.Errorf("AT8: with TOKTRIM_DEFER_TO_RTK=1 and rtk present, jest should print nothing, got %q", got)
+	}
+	// git log is a query: skipped either way, for toktrim's own reasons.
+	if got := runHook(t, bin, `{"tool_input":{"command":"git log"}}`); got != "" {
+		t.Errorf("git log is a query and must be left alone, got %q", got)
 	}
 
 	got := runHook(t, bin, `{"tool_input":{"command":"npm run build"}}`)

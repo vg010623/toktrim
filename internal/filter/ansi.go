@@ -66,10 +66,18 @@ func IsProgressLine(s string) bool {
 // on text with colour codes spliced through it. It never drops a line that
 // carries failure information, and it never drops the last line of a progress
 // run, so the final state of a download or build bar is always visible.
+//
+// Collapsing requires consecutive lines to be the *same line redrawn*: both
+// progress-shaped and sharing a similarity key, so that only the numbers differ.
+// Progress shape alone is not enough. "contains a percentage" also describes
+// every row of a coverage report, every row of `df -h`, and every row of a
+// measurement table -- and collapsing those to the last row threw away all of
+// them, silently, because a redraw has no missing information to report.
 type ANSI struct {
 	tracker
 
 	pendingProgress *Line
+	pendingKey      string
 }
 
 // NewANSI returns an ANSI filter.
@@ -87,12 +95,18 @@ func (a *ANSI) Process(l Line, emit Emit) {
 	}
 
 	if !l.Protected && IsProgressLine(l.Text) {
-		// Hold it: if another progress line follows, this one was overwritten.
+		key := SimilarityKey(l.Text)
+		if a.pendingProgress != nil && a.pendingKey != key {
+			// Progress-shaped, but a different line: the previous one was not
+			// overwritten by this, so both are real output.
+			a.flushProgress(emit)
+		}
+		// Hold it: if the same line follows, this one was overwritten.
 		if a.pendingProgress != nil {
 			a.markChanged()
 		}
 		held := l
-		a.pendingProgress = &held
+		a.pendingProgress, a.pendingKey = &held, key
 		return
 	}
 
@@ -108,7 +122,7 @@ func (a *ANSI) flushProgress(emit Emit) {
 		return
 	}
 	l := *a.pendingProgress
-	a.pendingProgress = nil
+	a.pendingProgress, a.pendingKey = nil, ""
 	if strings.TrimSpace(l.Text) != "" {
 		emit(l)
 	} else {

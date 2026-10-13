@@ -161,6 +161,28 @@ func TestMeasuredSavings(t *testing.T) {
 			},
 		},
 		{
+			// A tester's bug: git log went through truncation and lost 18 of
+			// 29 commits. Its output is a record; nothing may be dropped.
+			dir:           "git-log",
+			minByteSaving: 0.0,
+			mustKeep: []string{
+				"fix: make toktrim standalone by default instead of rtk-dependent",
+				"feat: add the Claude Code PreToolUse hook",
+				"fix: correct exit-code ordering, merge output streams, drop network dependency",
+				"chore: initialize go module and .gitignore",
+			},
+		},
+		{
+			// Found while fixing the above: "contains a percentage" was taken
+			// as proof of a redrawn progress bar, so a coverage table came out
+			// as three lines with all sixty files gone.
+			dir:           "coverage-table",
+			minByteSaving: 0.0,
+			mustKeep: []string{
+				"parser.ts", "rbac.service.ts", "All files",
+			},
+		},
+		{
 			dir:           "ansi-progress",
 			minByteSaving: 0.30,
 			mustKeep: []string{

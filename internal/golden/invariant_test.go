@@ -241,3 +241,59 @@ func plural(n int, w string) string {
 	}
 	return w + "s"
 }
+
+// TestQueryOutputIsNeverTruncated pins the rule that a query's output is the
+// answer. A fixture whose cmd is a query must come through with every line.
+//
+// A tester hit this with `git log` in v0.3.1: it lost 18 of 29 commits, and
+// nothing in the output said which ones. Compression is never worth that.
+func TestQueryOutputIsNeverTruncated(t *testing.T) {
+	entries, err := os.ReadDir(testdata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dir := filepath.Join(testdata, e.Name())
+		cmdBytes, err := os.ReadFile(filepath.Join(dir, "cmd"))
+		if err != nil {
+			continue
+		}
+		argv := strings.Fields(strings.TrimSpace(string(cmdBytes)))
+		if !filter.IsQueryCommand(argv) {
+			continue
+		}
+		checked++
+		t.Run(e.Name(), func(t *testing.T) {
+			input, got := filterCase(t, dir, config.Default())
+			in := strings.Split(strings.TrimRight(input, "\n"), "\n")
+			out := strings.Split(strings.TrimRight(got, "\n"), "\n")
+
+			// Every input line must appear, in order.
+			at := 0
+			var missing []string
+			for _, l := range in {
+				found := false
+				for j := at; j < len(out); j++ {
+					if out[j] == l {
+						at, found = j+1, true
+						break
+					}
+				}
+				if !found {
+					missing = append(missing, l)
+				}
+			}
+			if len(missing) > 0 {
+				t.Errorf("%d of %d lines missing from a query's output; first few:\n  %s",
+					len(missing), len(in), strings.Join(trim(missing, 5), "\n  "))
+			}
+		})
+	}
+	if checked == 0 {
+		t.Fatal("no query fixtures found; this invariant would pass vacuously")
+	}
+}
