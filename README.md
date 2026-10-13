@@ -47,8 +47,10 @@ saying where it came from.
 | `npm test`, failing jest suite | 1,347 → 1,347 | 45 → 45 | 0% |
 | `npx eslint`, every line an error | 8,106 → 8,106 | 125 → 125 | 0% |
 | `npm ls --all` (3145 lines) | 157,075 → 157,075 | 3145 → 3145 | 0% |
+| `git log` (29 commits) | 40,452 → 40,452 | 777 → 777 | 0% |
+| `jest --coverage`, 60-file table | 5,048 → 5,048 | 64 → 64 | 0% |
 
-The three 0% rows are the point, not a shortfall:
+The five 0% rows are the point, not a shortfall:
 
 - A **failing jest suite** is almost entirely failure information, so there is
   nothing to drop.
@@ -58,6 +60,10 @@ The three 0% rows are the point, not a shortfall:
 - **`npm ls --all`** is a query: its output *is* the answer, so it is never
   truncated. v0.2.0 cut it to 435 lines and lost every package that only
   appears in the middle of the tree.
+- **`git log`** is a record. v0.3.1 truncated it and lost 18 of 29 commits —
+  reported by a tester, fixed in v0.3.2.
+- **A coverage table** has a percentage on every row, which v0.3.1 mistook for
+  a redrawn progress bar and collapsed to three lines. Also fixed in v0.3.2.
 
 Compression is highest where the output is noise and lowest where it matters.
 
@@ -70,10 +76,22 @@ toktrim's hook leaves a command alone when:
   `--watch`, `-it`, `tail -f`, or `docker run` without `--rm`. Wrapping these
   would either hang behind toktrim or break the interactive session;
 - it already sends all output to a file (`> log 2>&1`, `&> log`);
-- **it is a query, whose output is the answer**: `npm`/`pnpm`/`yarn`
-  `ls`/`outdated`/`view`/`why`/`info`/`explain`/`search`/`audit`, `gh`, `cat`,
-  `jq`, `head`, non-follow `tail`, `sed -n`, `awk`, `git config`/`remote`/
-  `rev-parse`/`describe`;
+- **it is a query, whose output is the answer.** Three rules, so that new tools
+  do not have to be enumerated one at a time:
+  - a **read-only subcommand** on any tool — `list`, `ls`, `show`, `get`,
+    `describe`, `info`, `view`, `inspect`, `status`, `diff`, `log`, `tree`,
+    `search`, `why`, `explain`, `outdated`, `freeze`, `env`, `config`, `graph`,
+    `blame` and friends. So `npm ls`, `docker images`, `kubectl get`,
+    `pip freeze`, `cargo tree`, `go env` and `terraform output` are all covered.
+    (`logs`, plural, is *not*: `docker logs` is application output, which is
+    what toktrim is for.)
+  - **git's read-only subcommands**, spelled out because its names are unusual
+    and its output is a record: `log`, `show`, `diff`, `status`, `blame`,
+    `reflog`, `shortlog`, `rev-parse`, `rev-list`, `ls-files`, `branch`, `tag`
+    and the rest.
+  - **commands that only print** — `cat`, `jq`, `head`, non-follow `tail`,
+    `sed -n`, `awk`, `gh`, `ps`, `df`, `du`, `lsof`, `env`, `tree`, `stat` — and
+    any `--help` or `--version`;
 - **the pipeline already selects its own output**: anything ending in `head`,
   `tail`, `grep`, `wc`, `sort`, `uniq`, `cut` or `jq` — whoever wrote that
   pipeline already decided how much they wanted.
@@ -392,7 +410,15 @@ to the model, so unconditional telemetry would cost the tokens it claims to save
   neighbours only in a digit and that digit is the content.
 - **`toktrim pipe` cannot tell a query from a build.** Classification needs the
   command line, which `pipe` does not have, so piped output gets the generic
-  chain including truncation. Use `toktrim run --` to get the query protection.
+  chain including truncation. Use `toktrim run --` to get the query protection;
+  the hook always does.
+- **Query detection errs towards matching.** Calling a build log a query costs
+  some compression; calling a query a build log loses the answer, and the reader
+  cannot tell. So an unrecognised tool with a read-only-looking subcommand is
+  left alone rather than compressed.
+- **A chain containing a query is skipped whole.** `git log && npm install`
+  goes unfiltered, because wrapping it would send the `git log` half through
+  truncation.
 - **Beyond 1 MiB, the never-grow guarantee is best effort.** Past the decision
   window toktrim has already streamed what it produced and cannot retract it.
   At that size markers cannot plausibly outweigh what was removed.

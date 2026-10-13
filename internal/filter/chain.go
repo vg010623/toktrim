@@ -192,18 +192,68 @@ func Chain(argv []string, cfg *config.Config) []LineFilter {
 // cheap, lossless filters -- escape stripping, carriage returns, dedup -- and
 // never positional truncation.
 var queryCommands = map[string]bool{
-	"cat": true, "jq": true, "head": true, "tail": true, "awk": true,
-	"gh": true, "glow": true, "bat": true, "yq": true, "column": true,
+	// Print a file or a stream, as asked.
+	"cat": true, "bat": true, "glow": true, "jq": true, "yq": true,
+	"head": true, "tail": true, "awk": true, "column": true, "gh": true,
+
+	// Print one fact.
 	"env": true, "printenv": true, "pwd": true, "which": true, "whereis": true,
 	"date": true, "hostname": true, "uname": true, "id": true, "whoami": true,
+	"groups": true, "locale": true, "nproc": true, "arch": true, "realpath": true,
+	"readlink": true, "basename": true, "dirname": true, "stat": true, "file": true,
+
+	// Print a listing whose middle matters as much as its ends. `ps aux` cut to
+	// its head and tail is missing processes, and `df` on a host with many
+	// mounts is missing filesystems -- both of which a tester would read as a
+	// complete answer.
+	"ps": true, "df": true, "du": true, "lsof": true, "netstat": true,
+	"ss": true, "mount": true, "lsblk": true, "free": true, "uptime": true,
+	"ifconfig": true, "ip": true, "dig": true, "nslookup": true, "host": true,
+	"sysctl": true, "tree": true, "shasum": true, "sha256sum": true, "md5sum": true,
 }
 
-// queryNodeSubcommands are the package-manager subcommands that answer a
-// question rather than doing work.
-var queryNodeSubcommands = map[string]bool{
-	"ls": true, "list": true, "outdated": true, "view": true, "info": true,
-	"why": true, "explain": true, "search": true, "show": true, "config": true,
-	"bin": true, "root": true, "prefix": true, "licenses": true, "audit": true,
+// readOnlyVerbs are subcommand names that mean "show me something" rather than
+// "do something", across almost every CLI: git log, npm ls, docker images,
+// kubectl get, pip freeze, cargo tree, go env.
+//
+// Getting this wrong is deliberately asymmetric. Calling a build log a query
+// costs some compression. Calling a query a build log loses the answer -- a
+// `git log` cut to its first and last lines is missing commits, and a reader
+// has no way to tell. So the list errs towards matching.
+var readOnlyVerbs = map[string]bool{
+	"list": true, "ls": true, "show": true, "get": true, "describe": true,
+	"info": true, "view": true, "inspect": true, "status": true, "diff": true,
+	"tree": true, "search": true, "why": true, "explain": true, "outdated": true,
+	"freeze": true, "env": true, "version": true, "help": true, "config": true,
+	"metadata": true, "graph": true, "blame": true, "history": true, "cat": true,
+	"print": true, "dump": true, "export": true, "report": true, "summary": true,
+	"stat": true, "stats": true, "versions": true, "where": true, "path": true,
+	"images": true, "ps": true, "top": true, "licenses": true, "audit": true,
+	"bin": true, "root": true, "prefix": true, "output": true, "whoami": true,
+
+	// "log" is here but "logs" is not, on purpose. `git log` and `hg log` print
+	// a record whose middle matters as much as its ends. `docker logs` and
+	// `kubectl logs` print application output, which is exactly what toktrim
+	// exists to compress -- and the follow forms are caught as long-running
+	// before they reach here.
+	"log": true,
+}
+
+// gitReadOnly are git's read-only subcommands whose names the generic verb list
+// does not cover. git is worth spelling out because its output is a record --
+// commits, hunks, blame lines -- where dropping the middle is data loss, and
+// because almost every one of these was previously left to rtk and so never
+// had to be classified here at all. That is how `git log` ended up being
+// truncated when toktrim became standalone.
+var gitReadOnly = map[string]bool{
+	"log": true, "show": true, "diff": true, "status": true, "blame": true,
+	"annotate": true, "reflog": true, "shortlog": true, "describe": true,
+	"rev-parse": true, "rev-list": true, "ls-files": true, "ls-tree": true,
+	"ls-remote": true, "cat-file": true, "show-ref": true, "for-each-ref": true,
+	"whatchanged": true, "count-objects": true, "var": true, "grep": true,
+	"branch": true, "tag": true, "remote": true, "config": true, "notes": true,
+	"stash": true, "worktree": true, "submodule": true, "bisect": true,
+	"verify-commit": true, "verify-tag": true, "name-rev": true, "check-ignore": true,
 }
 
 // pipelineSinks end a pipeline by selecting or counting, which means the
@@ -220,6 +270,15 @@ func IsQuerySegment(words []string) bool {
 		return false
 	}
 	cmd := baseName(words[0])
+
+	// A help or version request is always just the answer.
+	for _, w := range words[1:] {
+		switch strings.ToLower(w) {
+		case "--help", "-h", "--version", "-v", "-V":
+			return true
+		}
+	}
+
 	if queryCommands[cmd] {
 		// `tail -f` is a follow, not a query.
 		for _, w := range words[1:] {
@@ -229,15 +288,8 @@ func IsQuerySegment(words []string) bool {
 		}
 		return true
 	}
+
 	switch cmd {
-	case "npm", "pnpm", "yarn", "bun":
-		for _, w := range words[1:] {
-			if strings.HasPrefix(w, "-") {
-				continue
-			}
-			return queryNodeSubcommands[w]
-		}
-		return false
 	case "sed":
 		// `sed -n ...` prints selected lines; a plain sed transforms a stream.
 		for _, w := range words[1:] {
@@ -247,16 +299,29 @@ func IsQuerySegment(words []string) bool {
 		}
 		return false
 	case "git":
-		// `git config --list`, `git remote -v`: short, and the answer itself.
-		for _, w := range words[1:] {
-			if strings.HasPrefix(w, "-") {
-				continue
-			}
-			return w == "config" || w == "remote" || w == "rev-parse" || w == "describe"
+		if sub, ok := subcommand(words); ok {
+			return gitReadOnly[sub]
 		}
-		return false
+		// Bare `git` prints usage.
+		return true
+	}
+
+	// Everything else: judge the subcommand.
+	if sub, ok := subcommand(words); ok {
+		return readOnlyVerbs[sub]
 	}
 	return false
+}
+
+// subcommand returns the first non-flag word after the command name.
+func subcommand(words []string) (string, bool) {
+	for _, w := range words[1:] {
+		if strings.HasPrefix(w, "-") {
+			continue
+		}
+		return strings.ToLower(w), true
+	}
+	return "", false
 }
 
 // IsPipelineSink reports whether a command ends a pipeline by selecting or

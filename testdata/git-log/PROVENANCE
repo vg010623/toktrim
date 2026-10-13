@@ -1,0 +1,9 @@
+Captured with `git log --date=iso` in this repository, with the author name and
+email replaced. 29 commits.
+
+This is the repro a tester reported against v0.3.1: `git log` was wrapped (it
+had been rtk's territory until v0.3.1 made toktrim standalone, and the query
+list had never needed to classify it), so it went through head/tail truncation
+and lost 18 of 29 commits. The dedup window separately suppressed 18 identical
+`Author:` lines, so even surviving commits were missing their author. The whole
+output must now come through untouched.

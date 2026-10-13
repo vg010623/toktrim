@@ -8,7 +8,7 @@
 #3 [toktrim] 1 line of layer/progress output elided
 #3 DONE 0.0s
 #4 [1/6] FROM docker.io/library/node:20-alpine@sha256:4bfd66e1e1f4d2e5bb7ee0d1e3c1a8f9c0b7d6a5e4f3c2b1a09876543210fedc
-#4 [toktrim] 6 lines of layer/progress output elided
+#4 [toktrim] 12 lines of layer/progress output elided
 #4 DONE 4.2s
 #5 [internal] load build context
 #5 [toktrim] 1 line of layer/progress output elided

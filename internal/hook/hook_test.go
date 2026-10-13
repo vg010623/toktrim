@@ -49,8 +49,8 @@ func TestClassifyStandalone(t *testing.T) {
 		{"dotnet build", true},
 		{"dotnet test", true},
 		{"make -j8", true},
-		{"git status", true},
 		{"git commit -m wip", true},
+		{"git push", true},
 		{"npm ci && npm run build", true},
 		{"./scripts/deploy.sh", true},
 		{"CI=1 npm run build", true},
@@ -86,6 +86,34 @@ func TestClassifyStandalone(t *testing.T) {
 		{"head -50 big.log", false},
 		{"sed -n '10,20p' file.txt", false},
 		{"git config --list", false},
+		// git's read-only subcommands print a record whose middle matters as
+		// much as its ends. Truncating `git log` drops commits, and the reader
+		// cannot tell. This is what a tester hit in v0.3.1.
+		{"git log", false},
+		{"git log --oneline -50", false},
+		{"git show HEAD", false},
+		{"git diff HEAD~3", false},
+		{"git status", false},
+		{"git blame README.md", false},
+		{"git shortlog -sn", false},
+		{"git reflog", false},
+		{"git rev-list --count HEAD", false},
+		{"git ls-files", false},
+		// Generic read-only verbs, so a tool does not have to be enumerated.
+		{"docker images", false},
+		{"docker ps -a", false},
+		{"kubectl get pods", false},
+		{"pip freeze", false},
+		{"pip list", false},
+		{"cargo tree", false},
+		{"go env", false},
+		{"go list ./...", false},
+		{"terraform output", false},
+		{"brew info jq", false},
+		// A help or version request is always just the answer.
+		{"npm run build --help", false},
+		{"docker build --help", false},
+		{"make --version", false},
 
 		// Pipelines that select their own output.
 		{"npm run build | tail -40", false},
@@ -104,9 +132,9 @@ func TestClassifyStandalone(t *testing.T) {
 // With deference opted in, a command rtk claims is left to rtk and everything
 // else is still toktrim's.
 func TestClassifyDeferringToRTK(t *testing.T) {
-	c := deferring("git status", "jest --coverage", "cargo build", "npm run build")
+	c := deferring("git commit -m wip", "jest --coverage", "cargo build", "npm run build")
 
-	for _, cmd := range []string{"git status", "jest --coverage", "cargo build", "npm run build"} {
+	for _, cmd := range []string{"git commit -m wip", "jest --coverage", "cargo build", "npm run build"} {
 		if d := c.Classify(cmd); d.Wrap {
 			t.Errorf("%q: should defer to rtk, got wrap (%s)", cmd, d.Reason)
 		}
@@ -125,12 +153,27 @@ func TestClassifyDeferringToRTK(t *testing.T) {
 // A chain is only left to rtk when rtk claims every part of it. Otherwise rtk
 // will not rewrite the chain and deferring would leave it unfiltered.
 func TestDeferOnlyWhenRTKClaimsTheWholeChain(t *testing.T) {
-	c := deferring("git status", "git log")
-	if d := c.Classify("git status && git log"); d.Wrap {
+	c := deferring("jest --coverage", "cargo build")
+	if d := c.Classify("jest --coverage && cargo build"); d.Wrap {
 		t.Errorf("a chain rtk claims entirely should be deferred, got wrap (%s)", d.Reason)
 	}
-	if d := c.Classify("git status && npm install"); !d.Wrap {
+	if d := c.Classify("jest --coverage && npm install"); !d.Wrap {
 		t.Errorf("a mixed chain must stay with toktrim, got skip (%s)", d.Reason)
+	}
+}
+
+// A chain containing a query is left alone entirely. Wrapping it would send the
+// query's output through truncation, and losing the answer is worse than
+// leaving the other half of the chain uncompressed.
+func TestChainWithAQueryIsSkipped(t *testing.T) {
+	for _, cmd := range []string{
+		"git log && npm install",
+		"npm install && git log --oneline",
+		"cat package.json && npm ci",
+	} {
+		if d := standalone().Classify(cmd); d.Wrap {
+			t.Errorf("%q: a chain containing a query should be skipped, got wrap (%s)", cmd, d.Reason)
+		}
 	}
 }
 
@@ -241,12 +284,15 @@ func TestAcceptance_GitStatusPrintsNothing(t *testing.T) {
 	}
 }
 
-func TestGitStatusIsWrappedByDefault(t *testing.T) {
-	got := hookOutput(t, `{"tool_input":{"command":"git status"}}`)
+func TestRTKsOtherCommandsAreWrappedByDefault(t *testing.T) {
+	// Standalone, a command rtk used to take is toktrim's. `git status` is not
+	// the example any more: it is a query, so toktrim leaves it alone for its
+	// own reasons.
+	got := hookOutput(t, `{"tool_input":{"command":"jest --coverage"}}`)
 	if got == "" {
-		t.Fatal("standalone toktrim should wrap git status so that something filters it")
+		t.Fatal("standalone toktrim should wrap jest so that something filters it")
 	}
-	if want := `toktrim run -- bash -c 'git status'`; updatedCommand(t, got) != want {
+	if want := `toktrim run -- bash -c 'jest --coverage'`; updatedCommand(t, got) != want {
 		t.Errorf("wrapped command = %q, want %q", updatedCommand(t, got), want)
 	}
 }

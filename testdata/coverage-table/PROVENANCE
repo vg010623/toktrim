@@ -1,0 +1,9 @@
+Generated: a 60-file istanbul-style coverage table, every row carrying four
+percentages.
+
+Repro for the second bug found while fixing `git log`. The ANSI filter treated
+"contains a percentage" as proof of a redrawn progress line and collapsed
+consecutive ones to the last, so this table came out as 3 lines with all 60
+files gone and no inline marker. Collapsing now requires consecutive lines to
+share a similarity key -- the same line redrawn -- which a table of different
+filenames never does.
